@@ -3,12 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { Link } from 'react-router'
 import { errorMessage, request } from '../../shared/api/client'
+import type { Page, Portfolio } from '../../shared/api/types'
+import { AppShell } from '../../shared/ui/AppShell'
+import { Pagination } from '../../shared/ui/Pagination'
 import { Button } from '../../shared/ui/button'
 import { useAuth } from '../auth/AuthProvider'
 
-interface Portfolio { id: string; name: string; description: string | null; archived: boolean }
-interface Page<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number }
 const schema = z.object({
   name: z.string().trim().min(1, 'Informe o nome do portfólio.').max(120, 'Use até 120 caracteres.'),
   description: z.string().trim().max(1000, 'Use até 1.000 caracteres.'),
@@ -20,8 +22,6 @@ export function PortfoliosPage() {
   const queryClient = useQueryClient()
   const [page, setPage] = useState(0)
   const [showForm, setShowForm] = useState(false)
-  const [logoutError, setLogoutError] = useState<string | null>(null)
-  const [loggingOut, setLoggingOut] = useState(false)
   const portfolios = useQuery({
     queryKey: ['portfolios', auth.account?.id, page],
     queryFn: async ({ signal }) => (await request<Page<Portfolio>>(`/portfolios?page=${page}&size=20&includeArchived=false`, { signal })).data,
@@ -40,16 +40,7 @@ export function PortfoliosPage() {
       await queryClient.invalidateQueries({ queryKey: ['portfolios'] })
     },
   })
-  async function logout() {
-    setLogoutError(null)
-    setLoggingOut(true)
-    try { await auth.logout() } catch (error) { setLogoutError(errorMessage(error)) }
-    finally { setLoggingOut(false) }
-  }
-  return <div className="app-shell">
-    <header className="topbar"><div className="brand"><span className="brand-mark small">T</span> Tabula</div><div className="account"><span>{auth.account?.name}</span><Button variant="outline" onClick={logout} disabled={loggingOut}>{loggingOut ? 'Saindo...' : 'Sair'}</Button></div></header>
-    <main className="workspace">
-      {logoutError && <p className="error-box" role="alert">{logoutError}</p>}
+  return <AppShell>
       <div className="section-heading"><div><p className="eyebrow">SEU ESPAÇO DE TRABALHO</p><h1>Portfólios</h1><p className="muted">Organize seus projetos em portfólios.</p></div><Button onClick={() => { create.reset(); setShowForm(!showForm) }}>{showForm ? 'Fechar' : '+ Novo portfólio'}</Button></div>
       {showForm && <section className="panel form-panel"><h2>Criar portfólio</h2><p className="muted">Você será responsável por este portfólio.</p><form className="form-stack" onSubmit={handleSubmit(values => create.mutate(values))} noValidate>
         <label>Nome<input maxLength={120} {...register('name')} aria-invalid={!!errors.name} />{errors.name && <span className="field-error">{errors.name.message}</span>}</label>
@@ -59,9 +50,8 @@ export function PortfoliosPage() {
       </form></section>}
       {portfolios.isPending ? <div className="panel" role="status">Carregando portfólios...</div> : portfolios.isError ? <div className="panel"><p role="alert">{errorMessage(portfolios.error)}</p><Button variant="outline" onClick={() => void portfolios.refetch()}>Tentar novamente</Button></div> : portfolios.data.content.length === 0 ? <div className="panel empty"><div className="empty-icon">◇</div><h2>Nenhum portfólio por aqui</h2><p className="muted">Crie seu primeiro portfólio para começar a organizar seu trabalho.</p>{!showForm && <Button onClick={() => setShowForm(true)}>Criar portfólio</Button>}</div> : <>
         <p className="list-label">{portfolios.data.totalElements} {portfolios.data.totalElements === 1 ? 'PORTFÓLIO' : 'PORTFÓLIOS'}</p>
-        <div className="portfolio-grid">{portfolios.data.content.map(item => <article className="panel portfolio-card" key={item.id}><div className="card-icon">◇</div><h2>{item.name}</h2><p className="muted">{item.description || 'Sem descrição.'}</p></article>)}</div>
-        {portfolios.data.totalPages > 1 && <nav className="pagination" aria-label="Paginação"><Button variant="outline" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button><span>Página {page + 1} de {portfolios.data.totalPages}</span><Button variant="outline" disabled={page + 1 >= portfolios.data.totalPages} onClick={() => setPage(p => p + 1)}>Próxima</Button></nav>}
+        <div className="portfolio-grid">{portfolios.data.content.map(item => <Link className="panel portfolio-card card-link" key={item.id} to={`/portfolios/${encodeURIComponent(item.id)}`}><div className="card-icon">◇</div><h2>{item.name}</h2><p className="muted">{item.description || 'Sem descrição.'}</p><span className="card-action">Ver projetos →</span></Link>)}</div>
+        <Pagination result={portfolios.data} page={page} onChange={setPage} />
       </>}
-    </main>
-  </div>
+  </AppShell>
 }

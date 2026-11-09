@@ -32,6 +32,7 @@ describe('fluxos da aplicação (fixtures)', () => {
     render(<App />)
     expect(screen.getByText('Verificando sua sessão...')).toBeInTheDocument()
     expect(await screen.findByText('Nenhum portfólio por aqui')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Tabula' }).querySelector('img')).toHaveAttribute('src', expect.stringContaining('tabula-symbol.png'))
     await user.click(screen.getByRole('button', { name: '+ Novo portfólio' }))
     await user.type(screen.getByLabelText('Nome'), 'Operações')
     await user.click(screen.getByRole('button', { name: 'Criar portfólio' }))
@@ -41,6 +42,7 @@ describe('fluxos da aplicação (fixtures)', () => {
     expect(new Headers(createCall[1].headers).get('X-CSRF-TOKEN')).toBe('token-1')
     await user.click(screen.getByRole('button', { name: 'Sair' }))
     expect(await screen.findByText('Entrar na sua conta')).toBeInTheDocument()
+    expect(document.querySelector('.login-intro img')).toHaveAttribute('src', expect.stringContaining('tabula-symbol.png'))
     const logoutCall = fetchMock.mock.calls.find(call => call[0].endsWith('/auth/logout'))!
     expect(new Headers(logoutCall[1].headers).get('X-CSRF-TOKEN')).toBe('token-1')
   })
