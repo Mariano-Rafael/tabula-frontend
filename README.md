@@ -24,7 +24,13 @@ npm test
 npm run build
 ```
 
-Os testes utilizam **fixtures HTTP**, sem credenciais reais. Eles não comprovam que o backend, a IBM ou os serviços de banco estejam funcionando. Com uma conta e instância IBM reais, verifique manualmente: login, criação de portfólio/projeto, cadastro e teste da integração, configuração de destino, importação, abertura de versão, salvamento/conflito de layout e logout. A instalação e execução não utilizam mocks na aplicação.
+Os testes utilizam **fixtures HTTP**, sem credenciais reais. Eles não comprovam que o backend, a IBM ou os serviços de banco estejam funcionando. Com uma conta e instância IBM reais, verifique manualmente: login, criação e edição de portfólio, criação de projeto, cadastro e teste da integração, configuração de destino, importação, abertura de versão, salvamento/conflito de layout e logout. A instalação e execução não utilizam mocks na aplicação.
+
+Na lista de portfólios, OWNER e administradores podem editar nome e descrição; limpar a descrição envia uma string vazia. As permissões são verificadas no backend e erros de verificação são exibidos no cartão correspondente.
+
+Nas listagens, OWNER, EDITOR e administradores podem editar nome e descrição de projetos e renomear fluxos. Limpar a descrição do projeto envia uma string vazia. A criação de um fluxo vazio e editável sem uma skill existente ainda não é oferecida pelo backend: o upload exige JSON de skill válido, e a edição estrutural permanece indisponível.
+
+Na lista de fluxos, **Novo fluxo** oferece apenas uma prévia temporária de Dialog, com ou sem a intenção de vínculo IBM. A prévia não salva dados, não configura credenciais ou vínculo e desaparece ao sair da página ou atualizá-la; não é possível abrir seu editor nem enviá-la à IBM.
 
 ## Integração e importação IBM
 
@@ -33,6 +39,8 @@ Em um portfólio, OWNER/admin pode cadastrar uma instância com URL e API key e 
 Em um projeto, OWNER/admin configura um destino Draft informando os IDs IBM. Para importar Dialog V2, informe Assistant ID e Dialog skill ID; workspace ID é opcional e se destina somente ao modo Dialog V1 legado. As versões das APIs são obtidas dos padrões do backend. OWNER/EDITOR/admin pode solicitar importação Dialog ou Actions a partir de um destino Draft ativo.
 
 Uma importação pendente ou de resultado incerto mantém a chave e o corpo da intenção em memória ao navegar. Use **Repetir mesma solicitação** após a espera indicada; não há retry automático. A memória é perdida ao atualizar a página, encerrar a sessão ou fechar o navegador; nesses casos, consulte os fluxos e versões existentes antes de tentar outra intenção para evitar duplicação. Para uma versão reservada PENDING, consultar e reconciliar são ações separadas. A reconciliação não reenvia a importação à IBM. Quando a versão estiver READY, abra seu diagrama pelo link fornecido.
+
+Na listagem de fluxos, editores podem selecionar **Importar versão IBM** em um fluxo existente. A solicitação adiciona uma versão ao fluxo escolhido, usando seu tipo, sem alterar o rascunho existente; selecionar um destino para a importação não cria um vínculo persistente.
 
 ## Diagramas
 
