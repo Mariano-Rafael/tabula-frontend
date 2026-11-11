@@ -14,7 +14,7 @@ const resourceGroups = [
 ]
 
 export function CanvasMenu({ canCreate, onCreate, local = false, onCreateModule, onShowModules, onShowVariables, onAddVariable }: { canCreate: boolean; onCreate: (type: NewNodeType) => void; local?: boolean; onCreateModule?: () => void; onShowModules?: () => void; onShowVariables?: () => void; onAddVariable?: () => void }) {
-  if (local) return <aside className="canvas-menu canvas-menu-pando" aria-label="Menu do diagrama">
+  if (local) return <aside className="canvas-menu canvas-menu-local" aria-label="Menu do diagrama">
     <section className="canvas-menu-section">
       <h3 className="canvas-menu-heading">Nós</h3>
       <div className="canvas-menu-list">

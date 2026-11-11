@@ -273,9 +273,9 @@ textarea { resize: vertical; }
 .canvas-workspace-local .canvas-menu-icon-module { background: #7c3aed1a; border: 1px solid #7c3aed2e; color: #a78bfa; }
 .canvas-workspace-local .canvas-menu-icon-template { background: #ec48991a; border: 1px solid #ec48992e; color: #f472b6; }
 .canvas-workspace-local .canvas-menu-icon-variable { background: #6366f11a; border: 1px solid #6366f12e; color: #818cf8; }
-.canvas-menu-pando .canvas-menu-section + .canvas-menu-section { margin-top: 24px; padding-top: 20px; }
-.canvas-menu-pando button, .canvas-menu-pando .canvas-menu-resource { padding: 10px 12px; border-radius: 10px; font-size: .8125rem; }
-.canvas-menu-pando .canvas-menu-icon { width: 32px; height: 32px; border-radius: 8px; }
+.canvas-menu-local .canvas-menu-section + .canvas-menu-section { margin-top: 24px; padding-top: 20px; }
+.canvas-menu-local button, .canvas-menu-local .canvas-menu-resource { padding: 10px 12px; border-radius: 10px; font-size: .8125rem; }
+.canvas-menu-local .canvas-menu-icon { width: 32px; height: 32px; border-radius: 8px; }
 .canvas-workspace-local .flow-canvas { background: #101012; }
 .canvas-workspace-local .react-flow__minimap { background: #151517; border-color: #29292e; }
 .canvas-workspace-local .react-flow__node-group { padding: 0; border: 0; background: transparent; text-align: left; }
@@ -307,13 +307,13 @@ textarea { resize: vertical; }
 .local-node-option input:disabled { color: #dedee4; opacity: 1; }
 .local-node-add-option { padding: 5px 0; border: 0; background: transparent; color: #a1a1aa; text-align: left; font-size: .7rem; cursor: pointer; }
 .local-node-add-option:hover { color: #ededf0; }
-.pando-edge-dot { pointer-events: none; }
+.canvas-edge-dot { pointer-events: none; }
 .canvas-alignment-lines { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
 .canvas-alignment-lines line { stroke: #0ea5e9; stroke-width: 1; stroke-dasharray: 6 3; }
-.pando-edge-label { position: absolute; padding: 3px 6px; border-radius: 4px; background: #18181b; color: #ededf0; font-size: .7rem; pointer-events: none; }
+.canvas-edge-label { position: absolute; padding: 3px 6px; border-radius: 4px; background: #18181b; color: #ededf0; font-size: .7rem; pointer-events: none; }
 .canvas-inspector label.canvas-checkbox { display: flex; align-items: center; gap: 8px; }
 .canvas-inspector .canvas-checkbox input { width: auto; }
-@media (prefers-reduced-motion: reduce) { .pando-edge-dot { display: none; } }
+@media (prefers-reduced-motion: reduce) { .canvas-edge-dot { display: none; } }
 .react-flow__node:hover .local-node { border-color: color-mix(in srgb, var(--node-accent) 45%, #3f3f46); }
 .react-flow__node.selected .local-node, .react-flow__node:focus-visible .local-node { border-color: color-mix(in srgb, var(--node-accent) 70%, #3f3f46); }
 .local-module { width: 100%; height: 100%; padding: 14px; border: 1px dashed #a78bfa99; border-radius: 10px; background: #7c3aed10; color: #ddd0ff; font-size: .85rem; }
