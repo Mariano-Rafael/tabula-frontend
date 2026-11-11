@@ -8,7 +8,7 @@ interface TextValue { responseIndex: number; valueIndex: number; text: string }
 function object(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : null
 }
-function values(original: unknown) {
+export function dialogValues(original: unknown) {
   const node = object(original)
   const generic = object(node?.output)?.generic
   const texts: TextValue[] = []
@@ -27,7 +27,7 @@ export function DialogNodeEditor({ flowId, node, revision, disabled, onDirty, on
   flowId: string; node: DiagramNode; revision: number; disabled: boolean
   onDirty: (dirty: boolean) => void; onSaving: (saving: boolean) => void; onReload: () => Promise<void>
 }) {
-  const initial = useMemo(() => values(node.data.original), [node])
+  const initial = useMemo(() => dialogValues(node.data.original), [node])
   const confirm = useConfirm()
   const [title, setTitle] = useState(initial.title)
   const [conditions, setConditions] = useState(initial.conditions)
@@ -60,7 +60,7 @@ export function DialogNodeEditor({ flowId, node, revision, disabled, onDirty, on
       else setError(errorMessage(err))
     } finally { setSaving(false) }
   }
-  return <section className="panel node-editor">
+  return <section className="dialog-node-editor">
     <h2>Editar nó: {node.data.label}</h2>
     <p className="muted">Altera somente o rascunho local, não a skill IBM. Campos não modificados são preservados.</p>
     <div className="form-stack">

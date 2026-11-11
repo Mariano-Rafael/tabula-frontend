@@ -55,7 +55,7 @@ function ProjectCard({ project, canEdit, onArchived }: { project: Project; canEd
     setEditing(true)
   }
   return <article className={`portfolio-tile${editing ? ' portfolio-tile-editing' : ''}`}>
-    <div className="portfolio-tile-top"><CatalogIcon /><span className="portfolio-tile-label">PROJETO</span>
+    <div className="portfolio-tile-top"><CatalogIcon type="project" /><span className="portfolio-tile-label">PROJETO</span>
       {canEdit && !editing && <button className="portfolio-edit" type="button" aria-label={`Editar ${project.name}`} onClick={startEditing}>Editar</button>}
     </div>
     {editing && canEdit ? <form className="portfolio-edit-form" onSubmit={handleSubmit(values => update.mutate(values))} noValidate>
@@ -66,7 +66,7 @@ function ProjectCard({ project, canEdit, onArchived }: { project: Project; canEd
       {archive.isError && <p className="error-box" role="alert">Não foi possível arquivar o projeto. {errorMessage(archive.error)}</p>}
       <div className="portfolio-edit-actions"><Button type="submit" disabled={update.isPending || archive.isPending}>{update.isPending ? 'Salvando...' : 'Salvar alterações'}</Button><Button type="button" variant="outline" disabled={update.isPending || archive.isPending} onClick={() => setEditing(false)}>Cancelar</Button></div>
       <button className="flow-archive" type="button" disabled={update.isPending || archive.isPending} onClick={async () => {
-        if (await confirm(`Arquivar "${project.name}"? Alterações não salvas serão descartadas. O projeto sairá da lista e seus fluxos não poderão ser editados enquanto estiver arquivado. Não há restauração pela interface; o conteúdo na IBM não será alterado.`)) archive.mutate()
+        if (await confirm(`Arquivar "${project.name}"? Alterações não salvas serão descartadas. O projeto sairá da lista e seus fluxos não poderão ser editados enquanto estiver arquivado. Não há restauração pela interface.`)) archive.mutate()
       }}>{archive.isPending ? 'Arquivando...' : 'Arquivar projeto'}</button>
     </form> : <Link className="portfolio-tile-link" to={`/projects/${encodeURIComponent(project.id)}`}>
       <h2>{project.name}</h2><p>{project.description || 'Sem descrição.'}</p><CatalogStack />
@@ -93,7 +93,7 @@ export function ProjectsPage() {
     <Link className="back-link" to="/portfolios">← Portfólios</Link>
     {portfolio.isPending ? <p role="status">Carregando portfólio...</p> : portfolio.isError ? <div className="panel"><p role="alert">{errorMessage(portfolio.error)}</p><Button variant="outline" onClick={() => void portfolio.refetch()}>Tentar novamente</Button></div> : <>
       <div className="section-heading portfolios-heading"><div><p className="eyebrow">PROJETOS DO PORTFÓLIO</p><h1>{portfolio.data.name}<span>.</span></h1><p className="muted">Organize seus fluxos de bots em projetos.</p></div>
-        <div className="source-picker"><Link className="text-link" to={`/portfolios/${id}/integration`}>Integração IBM</Link>{permission.data && <Button onClick={() => { create.reset(); setShowForm(true) }}>+ Novo projeto</Button>}</div>
+        <div className="source-picker">{permission.data && <Button onClick={() => { create.reset(); setShowForm(true) }}>+ Novo projeto</Button>}</div>
       </div>
       {permission.isError && <p className="error-box" role="alert">Não foi possível verificar sua permissão. {errorMessage(permission.error)} <button className="text-link" onClick={() => void permission.refetch()}>Tentar novamente</button></p>}
       {showForm && permission.data && <CreationDrawer title="Novo projeto" pending={create.isPending} onClose={() => setShowForm(false)}><form className="form-stack" noValidate onSubmit={handleSubmit(values => create.mutate(values))}>

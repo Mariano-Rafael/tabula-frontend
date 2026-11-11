@@ -1,8 +1,8 @@
 # Tabula frontend
 
-SPA React/TypeScript para o backend Tabula. A aplicação contempla autenticação por sessão, portfólios e projetos, configuração de integração e destinos IBM, importação de fluxos e visualização de diagramas com React Flow.
+SPA React/TypeScript para o backend Tabula, com autenticação por sessão, portfólios, projetos e editor de canvas com exportação JSON.
 
-A hierarquia é **Portfólio → Projeto → Fluxo → Versões**. As permissões são definidas no portfólio. Os fluxos IBM têm layout atual compartilhado entre versões; fluxos LOCAL mantêm o canvas no próprio rascunho e em cada versão. Os tipos Dialog e Actions existentes continuam disponíveis.
+A hierarquia é **Portfólio → Projeto → Fluxo → Versões**. As permissões são definidas no portfólio. Fluxos gerenciados pelo editor guardam o canvas em cada versão; fluxos locais legados mantêm o canvas no rascunho e nas versões.
 
 ## Executar
 
@@ -26,7 +26,7 @@ npm test
 npm run build
 ```
 
-Os testes utilizam **fixtures HTTP**, sem credenciais reais. Eles não comprovam que o backend, a IBM ou os serviços de banco estejam funcionando. Com uma conta e instância IBM reais, verifique manualmente: login, criação e edição de portfólio, criação de projeto, cadastro e teste da integração, configuração de destino, importação, abertura de versão, salvamento/conflito de layout e logout. A instalação e execução não utilizam mocks na aplicação.
+Os testes utilizam **fixtures HTTP**, sem credenciais reais. Eles não comprovam que o backend ou os serviços de banco estejam funcionando. Com uma conta real, verifique manualmente login, criação de portfólio, projeto e fluxo, edição, salvamento, exportação e logout. A aplicação não utiliza mocks.
 
 As confirmações de ações dentro da aplicação usam modais do Tabula. Ao atualizar ou fechar a aba com alterações não salvas ou uma operação pendente, o aviso de proteção é controlado pelo navegador e não pode ser substituído por um modal da página.
 
@@ -34,40 +34,38 @@ Na lista de portfólios, OWNER e administradores podem editar nome e descrição
 
 Nas listagens, OWNER, EDITOR e administradores podem editar nome e descrição de projetos e renomear fluxos. Limpar a descrição do projeto envia uma string vazia.
 
-Na edição de um fluxo, **Arquivar fluxo** remove-o da lista ativa sem apagar o conteúdo IBM. A API não oferece restauração para fluxos arquivados; a ação requer confirmação.
+Na edição de um fluxo, **Arquivar fluxo** remove-o da lista ativa. A API não oferece restauração para fluxos arquivados; a ação requer confirmação.
 
-OWNER, EDITOR e administradores podem arquivar projetos pela edição do cartão. O projeto sai da lista ativa e as operações de edição de seus fluxos ficam bloqueadas; o conteúdo IBM não é apagado. Não há restauração pela interface.
+OWNER, EDITOR e administradores podem arquivar projetos pela edição do cartão. O projeto sai da lista ativa e as operações de edição de seus fluxos ficam bloqueadas. Não há restauração pela interface.
 
-OWNER e administradores podem arquivar portfólios pela edição do cartão. O portfólio sai da lista ativa e as operações de edição de seus projetos ficam bloqueadas; o conteúdo IBM não é apagado. Não há restauração pela interface. Versões não possuem endpoint de exclusão.
+OWNER e administradores podem arquivar portfólios pela edição do cartão. O portfólio sai da lista ativa e as operações de edição de seus projetos ficam bloqueadas. Não há restauração pela interface. Versões não possuem endpoint de exclusão.
 
-Na lista de fluxos, **Novo fluxo** cria um fluxo LOCAL persistido, sem vínculo IBM. Quando a primeira versão vazia estiver pronta, o painel de criação fecha e a lista é atualizada; abra o fluxo, selecione a versão e inicie o rascunho explicitamente. A criação usa uma chave de idempotência mantida em memória para repetir a mesma intenção ou reconciliar uma versão pendente. Antes de atualizar ou sair com resultado incerto, consulte os fluxos para evitar duplicação. Fluxos IBM continuam sendo importados separadamente.
+Na lista de fluxos, **Novo fluxo** cria um fluxo local persistido. Com o backend atual, a primeira versão vazia é editável diretamente; o painel de criação fecha e a lista é atualizada. Com o contrato legado, é necessário iniciar o rascunho a partir da versão. A criação usa uma chave de idempotência mantida em memória para repetir a mesma intenção ou reconciliar uma versão pendente. Antes de atualizar ou sair com resultado incerto, consulte os fluxos para evitar duplicação.
 
-## Integração e importação IBM
+## Integrações anteriores
 
-Em um portfólio, OWNER/admin pode cadastrar uma instância com URL e API key e executar o teste de conexão. A chave é enviada apenas ao backend, fica fora do cache de mutations e é limpa do formulário após o envio, inclusive em caso de erro. O teste pode retornar HTTP 200 com verificações malsucedidas ou não suportadas; confira cada resultado.
-
-Em um projeto, OWNER/admin configura um destino Draft informando os IDs IBM. Para importar Dialog V2, informe Assistant ID e Dialog skill ID; workspace ID é opcional e se destina somente ao modo Dialog V1 legado. As versões das APIs são obtidas dos padrões do backend. OWNER/EDITOR/admin pode solicitar importação Dialog ou Actions a partir de um destino Draft ativo.
-
-Uma importação pendente ou de resultado incerto mantém a chave e o corpo da intenção em memória ao navegar. Use **Repetir mesma solicitação** após a espera indicada; não há retry automático. A memória é perdida ao atualizar a página, encerrar a sessão ou fechar o navegador; nesses casos, consulte os fluxos e versões existentes antes de tentar outra intenção para evitar duplicação. Para uma versão reservada PENDING, consultar e reconciliar são ações separadas. A reconciliação não reenvia a importação à IBM. Quando a versão estiver READY, abra seu diagrama pelo link fornecido.
-
-Na listagem de fluxos, editores podem selecionar **Importar versão IBM** em um fluxo existente. A solicitação adiciona uma versão ao fluxo escolhido, usando seu tipo, sem alterar o rascunho existente; selecionar um destino para a importação não cria um vínculo persistente.
+Os recursos e fluxos IBM estão ocultos nesta interface, inclusive por URL direta. Os dados e o backend existentes não foram removidos nem migrados. O frontend verifica também os documentos das versões para ocultar fluxos importados sem destino vinculado; isso pode aumentar o tempo de carregamento em projetos com muitos fluxos ou versões.
 
 ## Diagramas
 
-Acesse um portfólio, projeto e fluxo existentes. A visualização abre o rascunho e permite selecionar uma versão READY; se não houver rascunho, selecione uma versão disponível ou use o link da importação concluída.
+Acesse um portfólio, projeto e fluxo existentes. Fluxos gerenciados pelo editor abrem uma versão editável; selecione o nó para alterar título e resposta e use **Salvar** para gravar a versão. O salvamento usa a revisão da versão e preserva os demais dados do documento. Em conflito, as alterações locais permanecem até a recarga explícita.
 
-O canvas exibe uma **projeção estrutural parcial**, diferencia hierarquia, ordem de avaliação e salto e apresenta diagnósticos; passos internos de Actions não são exibidos. Proprietários, editores e administradores podem movimentar nós e salvar explicitamente o layout. Operadores e visualizadores têm acesso apenas à leitura. Permissões são consultadas no backend; `readOnly` e `editable` da projeção não são permissões.
+Fluxos legados continuam usando o rascunho e versões imutáveis: a visualização abre o rascunho e permite selecionar uma versão READY. Eles não são migrados automaticamente.
 
-Use a busca por título ou ID para selecionar e centralizar um nó; o painel de detalhes mostra seu identificador e a quantidade de relações ligadas a ele. **Ajustar diagrama** enquadra os nós, e **Ampliar canvas** ocupa a área disponível da página; use **Reduzir canvas** ou Escape para voltar. O minimapa também ajuda na navegação. Para quem pode editar, a mudança de enquadramento fica pendente até salvar o layout.
+Clique em um nó para abrir seu painel no lado direito do canvas. Proprietários, editores e administradores podem editar; operadores e visualizadores têm acesso somente leitura.
 
-Em fluxos LOCAL, o menu lateral permite criar nós **Texto Padrão**, **Resposta Generativa** e **Opções** com título, resposta textual, saídas nomeadas e variáveis de nó ou contexto. Conecte as saídas aos outros nós no canvas. Salve o documento com **Salvar canvas**; nós, conexões, posições e viewport fazem parte dos snapshots das versões. O backend não executa o canvas, e não há conversão ou publicação IBM. Módulos, Templates, Integrações e o menu global de Variáveis de contexto são recursos futuros.
+No canvas, o menu lateral cria nós **Texto Padrão**, **Resposta Generativa** e **Opções (Botões)**, com título, resposta textual, saídas nomeadas e variáveis de nó ou contexto. Os nomes das opções podem ser editados no próprio nó; cada opção pode ter uma resposta editada no painel. O painel permite registrar condição de entrada, nó aberto e cores e rótulo dos conectores; o cabeçalho usa a cor da condição, como no Pando. Essas configurações e a resposta generativa são apenas dados do JSON: o Tabula não executa as condições nem gera respostas. Conecte as saídas aos outros nós e use o minimapa para navegar.
 
-Nos fluxos IBM, os nós adicionados pelo menu são apenas visuais: ficam no layout compartilhado após **Salvar layout**, não possuem comportamento, não alteram o conteúdo IBM e não entram nas versões. Em versões e para usuários sem edição, o menu é somente leitura.
+**Criar Módulo** adiciona um agrupamento à versão atual; selecione um nó e escolha o módulo no painel para agrupá-lo ou removê-lo do grupo. Um módulo só pode ser excluído depois de seus nós serem retirados. O menu **Variáveis de contexto** edita as variáveis da versão: valores textuais podem ser alterados, enquanto valores JSON não textuais existentes são mostrados em leitura e preservados. Salve o documento com **Salvar** para persistir essas alterações. Templates continuam como recurso futuro.
 
-Nos fluxos IBM, o layout é compartilhado por todas as versões e salvo separadamente do conteúdo IBM. O salvamento preserva nós que não aparecem na projeção e usa `If-None-Match: *` para criar ou a ETag recebida em `If-Match` para atualizar. Nos fluxos LOCAL, o canvas completo é salvo no rascunho com `If-Match` e cada versão preserva seu próprio layout. Em caso de conflito, as alterações locais permanecem até o usuário optar por descartá-las e recarregar. Não há tradutor para JSON IBM, aplicação no Draft IBM ou publicação Live nesta etapa.
+Arraste no fundo para selecionar vários itens; use o botão do meio ou direito do mouse para mover o canvas. Com o canvas em foco, `Ctrl+A` seleciona tudo e `Ctrl+C` / `Ctrl+V` copiam e colam nós e conexões entre eles. `Delete` ou `Backspace` solicita confirmação para excluir a seleção. Copiar um módulo inclui seus nós; excluir um módulo requer selecionar também seus filhos. As linhas de alinhamento aparecem ao arrastar nós fora de módulos.
 
-Para editar conteúdo Dialog, OWNER/EDITOR/admin pode criar explicitamente um rascunho local a partir de uma versão READY, caso ele ainda não exista. No rascunho, selecione um nó Dialog padrão e salve alterações de título, condição ou textos literais existentes. A edição usa o ID IBM do nó e a revisão do rascunho; um conflito mantém os campos locais e exige descarte e recarga explícitos. Layout e conteúdo são salvos separadamente. A edição altera apenas o rascunho local, nunca a skill IBM, e não cria nós nem respostas.
+Novos nós locais incluem a saída **Continuar**. Nós antigos sem saídas exibem esse ponto e, ao conectá-lo, a saída é adicionada ao documento. O texto mostrado no nó é editado pelo painel lateral.
 
-No rascunho, use **Criar versão** para registrar um snapshot do conteúdo salvo. O layout só faz parte da versão de fluxos LOCAL; a operação não aplica conteúdo na IBM. O pedido usa a revisão do rascunho e uma chave de idempotência; resultado incerto permite repetir somente a mesma intenção, e versões pendentes podem ser consultadas ou reconciliadas explicitamente. A chave fica apenas em memória durante a sessão: antes de atualizar ou sair com uma operação pendente, consulte as versões existentes para evitar duplicação. Conflitos de revisão exigem recarregar o rascunho antes de criar outra versão.
+Para remover um nó selecionado, pressione **Delete** ou use **Remover nó** no painel e confirme; suas conexões também são removidas. Salve o canvas para persistir a alteração.
+
+**Exportar JSON** baixa o documento nativo completo da versão aberta, incluindo nós, conexões, posições e viewport. A exportação inclui alterações ainda não salvas, não altera o backend e não substitui **Salvar**. Ela também está disponível em versões somente leitura. Seleção e outros estados transitórios do React Flow não são exportados.
+
+Nos fluxos locais legados, o canvas completo é salvo no rascunho com `If-Match` e cada versão preserva seu próprio layout. A criação e duplicação de versões ainda não estão disponíveis na interface do editor.
 
 Guias e contratos de referência estão em [frontend-handoff](frontend-handoff/README.md); controllers e DTOs da árvore local do backend prevalecem sobre a fotografia. Tokens CSRF ficam apenas em memória, e o navegador administra o cookie HttpOnly de sessão.

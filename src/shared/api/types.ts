@@ -27,4 +27,6 @@ export interface Flow {
   name: string
   type: 'DIALOG' | 'ACTION' | 'LOCAL'
   archived: boolean
+  editorManaged?: boolean
+  targetId?: string | null
 }

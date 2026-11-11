@@ -40,8 +40,11 @@ export function CreateLocalFlow({ projectId, onCreated, onBusyChange }: { projec
     setBusy(true); onBusyChange(true)
     store({ ...previous, status: 'sending', message: '' })
     try {
-      const { data } = await request<Version>(`/projects/${encodeURIComponent(projectId)}/local-flows`, { method: 'POST', headers: { 'Idempotency-Key': previous.key }, body: JSON.stringify({ name: previous.name }) })
-      accept(previous, data)
+      const { data } = await request<Version | { flowId: string; versionId: string; version: { id: string; flowId: string; projectId: string } }>(`/projects/${encodeURIComponent(projectId)}/local-flows`, { method: 'POST', headers: { 'Idempotency-Key': previous.key }, body: JSON.stringify({ name: previous.name }) })
+      if ('version' in data) {
+        if (data.version.id !== data.versionId || data.version.flowId !== data.flowId) throw new Error('Resposta de criação inconsistente.')
+        accept(previous, { ...data.version, state: 'READY', errorCode: null })
+      } else accept(previous, data)
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) store({ ...previous, status: 'uncertain', message: errorMessage(error) })
     } finally { setBusy(false); onBusyChange(false) }
@@ -58,7 +61,7 @@ export function CreateLocalFlow({ projectId, onCreated, onBusyChange }: { projec
     store(null)
   }
   return <div className="form-stack">
-    <p className="notice">O fluxo local não é vinculado à IBM. Seu canvas é salvo no rascunho e em versões.</p>
+    <p className="notice">Crie um fluxo para editar e exportar seu canvas.</p>
     {!intent && <form className="form-stack" onSubmit={event => {
       event.preventDefault()
       const trimmed = name.trim()

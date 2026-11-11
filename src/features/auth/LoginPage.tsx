@@ -45,7 +45,7 @@ export function LoginPage() {
       <div className="login-intro-content">
         <p className="login-kicker">CLAREZA PARA CRIAR</p>
         <h1>Organize, crie e atualize seus bots de conversação em um só lugar, com recursos visuais e <em>muito mais facilidade.</em></h1>
-        <p className="login-description">Visualize e organize os fluxos do IBM Watson Orchestrate &amp; outros players do mercado em um só lugar.</p>
+        <p className="login-description">Crie, organize e exporte seus fluxos em um só lugar.</p>
       </div>
     </div>
     <section className="login-card">

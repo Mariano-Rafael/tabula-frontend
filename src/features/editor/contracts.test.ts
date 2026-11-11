@@ -24,6 +24,12 @@ describe('contrato de diagrama e layout (fixtures)', () => {
     expect(result.nodes.some(node => node.id === 'visual:1')).toBe(false)
   })
 
+  it('atualiza a opção generativa sem perder os demais metadados do nó', () => {
+    const stored: Layout = { ...layout, nodes: [{ id: 'visual:1', position: { x: 1, y: 1 }, visualType: 'options', width: 250 }] }
+    const result = buildLayout([{ id: 'visual:1', position: { x: 2, y: 3 }, data: { visualType: 'options', generative: true } }], stored, { x: 0, y: 0, zoom: 1 })
+    expect(result.nodes[0]).toEqual({ id: 'visual:1', position: { x: 2, y: 3 }, visualType: 'options', width: 250, generative: true })
+  })
+
   it('preserva ETag e identifica o layout ausente somente pelo código correto', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(diagram)).mockResolvedValueOnce(json(layout, 200, { ETag: '"layout-3"' })))
     await expect(loadEditor('flow', null)).resolves.toMatchObject({ layout, etag: '"layout-3"' })

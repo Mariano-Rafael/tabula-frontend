@@ -6,9 +6,6 @@ import { LoginPage } from '../features/auth/LoginPage'
 import { PortfoliosPage } from '../features/portfolios/PortfoliosPage'
 import { ProjectsPage } from '../features/projects/ProjectsPage'
 import { FlowsPage } from '../features/flows/FlowsPage'
-import { IntegrationPage } from '../features/integrations/IntegrationPage'
-import { TargetsPage } from '../features/integrations/TargetsPage'
-import { ImportPage } from '../features/flows/ImportPage'
 import { errorMessage } from '../shared/api/client'
 import { Button } from '../shared/ui/button'
 import { ConfirmProvider } from '../shared/ui/ConfirmDialog'
@@ -35,10 +32,7 @@ function AppRoutes() {
     <Route path="/login" element={<LoginPage />} />
     <Route path="/portfolios" element={auth.account ? <PortfoliosPage /> : <Navigate to="/login" replace />} />
     <Route path="/portfolios/:portfolioId" element={auth.account ? <PortfolioRoute /> : <Navigate to="/login" replace />} />
-    <Route path="/portfolios/:portfolioId/integration" element={auth.account ? <IntegrationPage /> : <Navigate to="/login" replace />} />
     <Route path="/projects/:projectId" element={auth.account ? <ProjectRoute /> : <Navigate to="/login" replace />} />
-    <Route path="/projects/:projectId/targets" element={auth.account ? <TargetsPage /> : <Navigate to="/login" replace />} />
-    <Route path="/projects/:projectId/import" element={auth.account ? <ImportPage /> : <Navigate to="/login" replace />} />
     <Route path="/flows/:flowId" element={auth.account ? <Suspense fallback={<main className="center-screen" role="status">Carregando editor...</main>}><FlowRoute /></Suspense> : <Navigate to="/login" replace />} />
     <Route path="*" element={<Navigate to={auth.account ? '/portfolios' : '/login'} replace />} />
   </Routes>

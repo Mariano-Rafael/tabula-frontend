@@ -16,7 +16,7 @@ function fixture(role = 'EDITOR') {
     if (url.includes('/portfolios/a/projects?')) return json(page([{ id: 'p', portfolioId: 'a', name: 'Projeto A', description: null, archived: false }]))
     if (url.endsWith('/portfolios/a/projects') && init.method === 'POST') return json({ id: 'new', portfolioId: 'a', name: 'Novo', archived: false }, 201)
     if (url.endsWith('/projects/p')) return json({ id: 'p', portfolioId: 'a', name: 'Projeto A', archived: false })
-    if (url.includes('/projects/p/flows?')) return json(page([{ id: 'f', projectId: 'p', name: 'Fluxo A', type: 'ACTION', archived: false }]))
+    if (url.includes('/projects/p/flows?')) return json(page([{ id: 'f', projectId: 'p', name: 'Fluxo A', type: 'LOCAL', archived: false }]))
     throw new Error(`Fixture sem rota: ${url}`)
   })
 }
@@ -24,6 +24,42 @@ beforeEach(() => window.history.pushState({}, '', '/portfolios'))
 afterEach(() => { cleanup(); clearCsrf(); setUnauthorizedHandler(null); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('navegação por portfólio, projeto e fluxo (fixtures)', () => {
+  it('oculta fluxos vinculados ou importados e mantém paginação após filtragem', async () => {
+    const fallback = fixture()
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url.includes('/projects/p/flows?')) return Promise.resolve(json(page([
+        { id: 'legacy', projectId: 'p', name: 'Dialog antigo', type: 'DIALOG', archived: false },
+        { id: 'linked', projectId: 'p', name: 'Vinculado', type: 'LOCAL', targetId: 'target', editorManaged: true, archived: false },
+        { id: 'imported', projectId: 'p', name: 'Importado', type: 'LOCAL', editorManaged: true, archived: false },
+        { id: 'f', projectId: 'p', name: 'Fluxo A', type: 'LOCAL', archived: false },
+      ])))
+      if (url.includes('/flows/imported/editor-versions?')) return Promise.resolve(json(page([{ id: 'v', flowId: 'imported' }])))
+      if (url.endsWith('/versions/v/canvas')) return Promise.resolve(json({ schemaVersion: 1, nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, ibm: {} }))
+      return fallback(url, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    window.history.pushState({}, '', '/projects/p')
+    render(<App />)
+    expect(await screen.findByRole('link', { name: /Fluxo A/ })).toBeInTheDocument()
+    expect(screen.getByText('1 FLUXO')).toBeInTheDocument()
+    expect(screen.queryByText('Dialog antigo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vinculado')).not.toBeInTheDocument()
+    expect(screen.queryByText('Importado')).not.toBeInTheDocument()
+  })
+
+  it('não abre fluxo legado IBM por URL direta', async () => {
+    const fallback = fixture()
+    vi.stubGlobal('fetch', vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/flows/f')) return Promise.resolve(json({ id: 'f', projectId: 'p', name: 'Legado', type: 'DIALOG', archived: false }))
+      if (url.includes('/flows/f/versions?')) return Promise.resolve(json(page([])))
+      return fallback(url, init)
+    }))
+    window.history.pushState({}, '', '/flows/f')
+    render(<App />)
+    expect(await screen.findByText('Este fluxo não está disponível nesta interface.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Migrar para versões editáveis' })).not.toBeInTheDocument()
+  })
+
   it('apresenta o emoji nos estados vazios de projetos e fluxos', async () => {
     const fallback = fixture()
     vi.stubGlobal('fetch', vi.fn((url: string, init: RequestInit) => {
@@ -45,24 +81,27 @@ describe('navegação por portfólio, projeto e fluxo (fixtures)', () => {
     const user = userEvent.setup()
     render(<App />)
     expect(await screen.findByRole('navigation', { name: 'Caminho de navegação' })).toHaveTextContent('Portfólios')
+    const portfolioCard = (await screen.findByRole('link', { name: /Portfólio A/ })).closest('article')
+    expect(portfolioCard?.querySelector('.portfolio-tile-icon-portfolio[aria-hidden="true"] svg')).toBeInTheDocument()
     await user.click(await screen.findByRole('link', { name: /Portfólio A/ }))
     expect(await within(screen.getByRole('navigation', { name: 'Caminho de navegação' })).findByText('Portfólio A')).toHaveAttribute('aria-current', 'page')
     const projectCard = await screen.findByRole('link', { name: /Projeto A/ })
+    expect(projectCard.closest('article')?.querySelector('.portfolio-tile-icon-project[aria-hidden="true"] svg')).toBeInTheDocument()
     expect(projectCard).toHaveAttribute('href', '/projects/p')
     expect(projectCard).toHaveTextContent('Sem descrição.')
     expect(screen.getByText('1 PROJETO')).toBeInTheDocument()
     expect(screen.getByRole('contentinfo')).toHaveTextContent('Tabula')
     await user.click(projectCard)
     expect(await screen.findByRole('link', { name: /^Fluxo A.*Ver diagrama/ })).toHaveAttribute('href', '/flows/f')
+    expect(screen.getByRole('link', { name: /^Fluxo A.*Ver diagrama/ }).closest('article')?.querySelector('.portfolio-tile-icon-flow[aria-hidden="true"] svg')).toBeInTheDocument()
     expect(screen.getByText('1 FLUXO')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Destinos IBM' })).toHaveAttribute('href', '/projects/p/targets')
-    expect(screen.getByRole('link', { name: 'Importar fluxo' })).toHaveAttribute('href', '/projects/p/import')
-    expect(await screen.findByRole('link', { name: 'Importar versão IBM para Fluxo A' })).toHaveAttribute('href', '/projects/p/import?flowId=f')
+    expect(screen.queryByRole('link', { name: 'Destinos IBM' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Importar fluxo' })).not.toBeInTheDocument()
     expect(screen.getByRole('contentinfo')).toHaveTextContent('Tabula')
     const navigation = screen.getByRole('navigation', { name: 'Caminho de navegação' })
     expect(await within(navigation).findByRole('link', { name: 'Portfólio A' })).toHaveAttribute('href', '/portfolios/a')
     expect(within(navigation).getByText('Projeto A')).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByText('Actions')).toBeInTheDocument()
+    expect(screen.getByText('Canvas')).toBeInTheDocument()
     await user.click(within(navigation).getByRole('link', { name: 'Portfólio A' }))
     expect(await screen.findByRole('link', { name: /Projeto A/ })).toBeInTheDocument()
   })
@@ -147,7 +186,7 @@ describe('navegação por portfólio, projeto e fluxo (fixtures)', () => {
   it('cria fluxo local com idempotência e fecha o painel após sucesso', async () => {
     const fallback = fixture()
     const fetchMock = vi.fn((url: string, init: RequestInit) => {
-      if (url.endsWith('/projects/p/local-flows')) return Promise.resolve(json({ id: 'v-local', flowId: 'local', projectId: 'p', state: 'READY' }, 201))
+      if (url.endsWith('/projects/p/local-flows')) return Promise.resolve(json({ flowId: 'local', versionId: 'v-local', version: { id: 'v-local', flowId: 'local', projectId: 'p', number: 1, revision: 1 }, targetId: null }, 201))
       return fallback(url, init)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -219,7 +258,7 @@ describe('navegação por portfólio, projeto e fluxo (fixtures)', () => {
 
   it('edita dados do projeto e nome do fluxo com CSRF', async () => {
     let project = { id: 'p', portfolioId: 'a', name: 'Projeto A', description: 'Descrição antiga', archived: false }
-    let flow = { id: 'f', projectId: 'p', name: 'Fluxo A', type: 'ACTION', archived: false }
+    let flow = { id: 'f', projectId: 'p', name: 'Fluxo A', type: 'LOCAL', archived: false }
     const fallback = fixture()
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       if (url.endsWith('/projects/p') && init.method === 'PATCH') {

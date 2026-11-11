@@ -28,6 +28,16 @@ afterEach(() => {
 })
 
 describe('fluxos da aplicação (fixtures)', () => {
+  it.each(['/portfolios/p/integration', '/projects/p/targets', '/projects/p/import'])('não expõe a rota antiga %s', async path => {
+    const fetchMock = fixtureFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    window.history.pushState({}, '', path)
+    render(<App />)
+    expect(await screen.findByText('Nenhum portfólio por aqui')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/portfolios')
+    expect(fetchMock.mock.calls.some(call => /\/(targets|integrations|imports)(\?|$)/.test(call[0]))).toBe(false)
+  })
+
   it('restaura sessão, cria portfólio com CSRF e faz logout', async () => {
     const fetchMock = fixtureFetch()
     vi.stubGlobal('fetch', fetchMock)

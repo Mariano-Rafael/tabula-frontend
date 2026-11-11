@@ -11,6 +11,7 @@ export interface LayoutNode {
   height?: number | null
   collapsed?: boolean | null
   visualType?: VisualNodeType | null
+  generative?: boolean | null
 }
 export interface Layout { flowId: string; revision: number; schemaVersion: number; nodes: LayoutNode[]; viewport: Viewport | null }
 export interface DiagramNode {
@@ -59,13 +60,13 @@ export async function loadEditor(flowId: string, versionId: string | null, signa
   return { diagram, layout, etag }
 }
 
-export function buildLayout(nodes: { id: string; position: Point; data?: { visualType?: VisualNodeType } }[], existing: Layout | null, viewport: Viewport, removedVisualIds: ReadonlySet<string> = new Set()) {
-  const updates = new Map(nodes.map(node => [node.id, { id: node.id, position: node.position, ...(node.data?.visualType ? { visualType: node.data.visualType } : {}) }]))
+export function buildLayout(nodes: { id: string; position: Point; data?: { visualType?: VisualNodeType; generative?: boolean } }[], existing: Layout | null, viewport: Viewport, removedVisualIds: ReadonlySet<string> = new Set()) {
+  const updates = new Map(nodes.map(node => [node.id, { id: node.id, position: node.position, ...(node.data?.visualType ? { visualType: node.data.visualType, ...(node.data.generative !== undefined ? { generative: node.data.generative } : {}) } : {}) }]))
   const retained = (existing?.nodes ?? []).filter(node => !node.visualType || !removedVisualIds.has(node.id)).map(node => {
     const updated = updates.get(node.id)
     if (!updated) return node
     updates.delete(node.id)
-    return { ...node, position: updated.position }
+    return { ...node, position: updated.position, ...(updated.generative !== undefined ? { generative: updated.generative } : {}) }
   })
   return { schemaVersion: 1, nodes: [...retained, ...updates.values()].map(node => ({ ...node })), viewport }
 }

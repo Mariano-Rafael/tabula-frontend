@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link, useLocation, useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { request } from '../api/client'
 import type { Flow, Portfolio, Project } from '../api/types'
 
 export function Breadcrumbs() {
   const { portfolioId: routePortfolioId, projectId: routeProjectId, flowId } = useParams()
-  const { pathname } = useLocation()
   const flow = useQuery({
     queryKey: ['flow', flowId],
     enabled: !!flowId,
@@ -37,9 +36,6 @@ export function Breadcrumbs() {
   if (portfolioId) crumbs.push({ label: portfolio.isError ? 'Portfólio indisponível' : portfolio.data?.name ?? 'Carregando portfólio…', to: `/portfolios/${encodeURIComponent(portfolioId)}` })
   if (projectId) crumbs.push({ label: project.isError ? 'Projeto indisponível' : project.data?.name ?? 'Carregando projeto…', to: `/projects/${encodeURIComponent(projectId)}` })
   if (flowId) crumbs.push({ label: flow.isError ? 'Fluxo indisponível' : flow.data?.name ?? 'Carregando fluxo…' })
-  else if (pathname.endsWith('/integration')) crumbs.push({ label: 'Integração IBM' })
-  else if (pathname.endsWith('/targets')) crumbs.push({ label: 'Destinos IBM' })
-  else if (pathname.endsWith('/import')) crumbs.push({ label: 'Importar fluxo' })
 
   return <nav className="breadcrumbs" aria-label="Caminho de navegação">
     <ol>{crumbs.map((crumb, index) => <li key={index}>

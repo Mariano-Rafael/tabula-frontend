@@ -60,7 +60,7 @@ function PortfolioCard({ item, onArchived }: { item: Portfolio; onArchived: () =
   }
   return <article className={`portfolio-tile${editing ? ' portfolio-tile-editing' : ''}`}>
     <div className="portfolio-tile-top">
-      <CatalogIcon />
+      <CatalogIcon type="portfolio" />
       <span className="portfolio-tile-label">PORTFÓLIO</span>
       {permission.isPending && <span className="portfolio-permission-status">Verificando permissão...</span>}
       {permission.data?.manage && !editing && <button className="portfolio-edit" type="button" aria-label={`Editar ${item.name}`} onClick={startEditing}>Editar</button>}
@@ -73,7 +73,7 @@ function PortfolioCard({ item, onArchived }: { item: Portfolio; onArchived: () =
       {archive.isError && <p className="error-box" role="alert">Não foi possível arquivar o portfólio. {errorMessage(archive.error)}</p>}
       <div className="portfolio-edit-actions"><Button type="submit" disabled={update.isPending || archive.isPending}>{update.isPending ? 'Salvando...' : 'Salvar alterações'}</Button><Button type="button" variant="outline" disabled={update.isPending || archive.isPending} onClick={() => setEditing(false)}>Cancelar</Button></div>
       <button className="flow-archive" type="button" disabled={update.isPending || archive.isPending} onClick={async () => {
-        if (await confirm(`Arquivar "${item.name}"? Alterações não salvas serão descartadas. O portfólio sairá da lista e seus projetos não poderão ser editados enquanto estiver arquivado. Não há restauração pela interface; o conteúdo na IBM não será alterado.`)) archive.mutate()
+        if (await confirm(`Arquivar "${item.name}"? Alterações não salvas serão descartadas. O portfólio sairá da lista e seus projetos não poderão ser editados enquanto estiver arquivado. Não há restauração pela interface.`)) archive.mutate()
       }}>{archive.isPending ? 'Arquivando...' : 'Arquivar portfólio'}</button>
     </form> : <Link className="portfolio-tile-link" to={`/portfolios/${encodeURIComponent(item.id)}`}>
       <h2>{item.name}</h2><p>{item.description || 'Sem descrição.'}</p>
