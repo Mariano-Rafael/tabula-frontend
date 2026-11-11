@@ -8,6 +8,7 @@ import { ApiError, errorMessage, request } from '../../shared/api/client'
 import type { Flow, Page, Project } from '../../shared/api/types'
 import { AppShell } from '../../shared/ui/AppShell'
 import { Button } from '../../shared/ui/button'
+import { useConfirm } from '../../shared/ui/ConfirmDialog'
 import { Pagination } from '../../shared/ui/Pagination'
 import { useAuth } from '../auth/AuthProvider'
 import type { Target } from '../integrations/types'
@@ -40,6 +41,7 @@ export function ImportPage() {
   const id = encodeURIComponent(projectId)
   const { account } = useAuth()
   const client = useQueryClient()
+  const confirm = useConfirm()
   const intentKey = ['import-intent', account?.id, projectId]
   const intentQuery = useQuery<Intent | null>({ queryKey: intentKey, queryFn: () => null, initialData: null, enabled: false, gcTime: Infinity, staleTime: Infinity })
   const intent = intentQuery.data
@@ -103,16 +105,16 @@ export function ImportPage() {
     const target = targets.data?.content.find(item => item.id === values.targetId && item.active && item.configuration.environmentType === 'DRAFT')
     if (!target) { setError('targetId', { message: 'Selecione um destino Draft ativo nesta página.' }); return }
     if (intent) return
-    if (flowId && (!flow.data || flow.data.id !== flowId || flow.data.projectId !== projectId || flow.data.archived)) return
-    const body = flowId && flow.data
+    if (flowId && (!flow.data || flow.data.id !== flowId || flow.data.projectId !== projectId || flow.data.archived || flow.data.type === 'LOCAL')) return
+    const body = flowId && flow.data && flow.data.type !== 'LOCAL'
       ? { targetId: values.targetId, type: flow.data.type, flowId }
       : { targetId: values.targetId, type: values.type, ...(values.name ? { name: values.name } : {}) }
     const next: Intent = { key: crypto.randomUUID(), body, status: 'sending', version: null, retryAt: 0, message: '' }
     store(next)
     void send(next)
   }
-  function discard() {
-    if (unresolved && !window.confirm('O resultado ainda pode estar pendente. Descartar a chave impede retomar esta intenção e outra tentativa pode criar uma importação duplicada. Continuar?')) return
+  async function discard() {
+    if (unresolved && !await confirm('O resultado ainda pode estar pendente. Descartar a chave impede retomar esta intenção e outra tentativa pode criar uma importação duplicada. Continuar?')) return
     client.setQueryData(intentKey, null)
   }
   return <AppShell>
@@ -125,7 +127,7 @@ export function ImportPage() {
     {permissions.data && !permissions.data.edit && <p className="notice">Somente OWNER, EDITOR ou administrador pode importar fluxos.</p>}
     {flowId && flow.isPending && <p role="status">Carregando fluxo...</p>}
     {flowId && flow.isError && <p className="error-box" role="alert">Não foi possível carregar o fluxo. {errorMessage(flow.error)} <button className="text-link" onClick={() => void flow.refetch()}>Tentar novamente</button></p>}
-    {flowId && flow.data && (flow.data.id !== flowId || flow.data.projectId !== projectId || flow.data.archived) && <p className="error-box" role="alert">O fluxo não pertence a este projeto ou está arquivado.</p>}
+    {flowId && flow.data && (flow.data.id !== flowId || flow.data.projectId !== projectId || flow.data.archived || flow.data.type === 'LOCAL') && <p className="error-box" role="alert">O fluxo não pertence a este projeto, está arquivado ou é local e não aceita importação IBM.</p>}
     {intent && <section className="panel form-panel"><h2>Importação atual</h2><p role="status">{intent.message}</p>
       <p className="muted">Esta é a importação em andamento neste projeto{intent.body.flowId ? ' para um fluxo existente' : ' para um novo fluxo'}.</p>
       {intent.status === 'ready' && intent.version && <><p>Versão {intent.version.number} pronta para visualização.</p><Link className="text-link" to={`/flows/${encodeURIComponent(intent.version.flowId)}?version=${encodeURIComponent(intent.version.id)}`}>Abrir diagrama da versão →</Link></>}
@@ -134,9 +136,9 @@ export function ImportPage() {
       {now < intent.retryAt && unresolved && <p className="muted">Aguarde {Math.ceil((intent.retryAt - now) / 1000)} s antes de tentar novamente.</p>}
       {intent.status === 'failed' && <p>Versão com estado {intent.version?.state}; código: {intent.version?.errorCode || 'não informado'}.</p>}
       <p className="muted">A intenção é mantida em memória ao navegar, mas será perdida ao atualizar a página, encerrar a sessão ou fechar o navegador.</p>
-      <Button variant="outline" disabled={busy} onClick={discard}>{unresolved ? 'Descartar intenção' : 'Iniciar outra importação'}</Button>
+      <Button variant="outline" disabled={busy} onClick={() => void discard()}>{unresolved ? 'Descartar intenção' : 'Iniciar outra importação'}</Button>
     </section>}
-    {!intent && permissions.data?.edit && project.data && !project.data.archived && (!flowId || (flow.data && flow.data.id === flowId && flow.data.projectId === projectId && !flow.data.archived)) && <section className="panel form-panel"><h2>Nova importação</h2>
+    {!intent && permissions.data?.edit && project.data && !project.data.archived && (!flowId || (flow.data && flow.data.id === flowId && flow.data.projectId === projectId && !flow.data.archived && flow.data.type !== 'LOCAL')) && <section className="panel form-panel"><h2>Nova importação</h2>
       {targets.isPending ? <p role="status">Carregando destinos...</p> : targets.isError ? <p role="alert">{errorMessage(targets.error)} <button className="text-link" onClick={() => void targets.refetch()}>Tentar novamente</button></p> : <>
         <p className="muted">Selecione um destino Draft ativo. A importação acessa a IBM pelo backend Tabula.</p>
         {flowId && flow.data && <p className="muted">Uma nova versão será adicionada a {flow.data.name}. O rascunho existente não será alterado.</p>}

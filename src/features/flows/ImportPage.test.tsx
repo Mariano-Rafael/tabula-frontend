@@ -29,6 +29,20 @@ function fixture(mode: 'pending-export' | 'pending-version' | 'ready' = 'ready',
 afterEach(() => { cleanup(); clearCsrf(); setUnauthorizedHandler(null); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('importação IBM (fixtures)', () => {
+  it('não permite importar IBM para um fluxo local mesmo com acesso direto à rota', async () => {
+    window.history.pushState({}, '', '/projects/p/import?flowId=f')
+    const fallback = fixture()
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/flows/f')) return Promise.resolve(json({ id: 'f', projectId: 'p', name: 'Local', type: 'LOCAL', archived: false }))
+      return fallback(url, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('é local e não aceita importação IBM')
+    expect(screen.queryByRole('button', { name: 'Solicitar importação' })).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(call => call[0].endsWith('/imports'))).toBe(false)
+  })
+
   it('reutiliza chave e corpo após 202, respeitando a espera e sem retry automático', async () => {
     window.history.pushState({}, '', '/projects/p/import')
     const fetchMock = fixture('pending-export')
@@ -159,10 +173,10 @@ describe('importação IBM (fixtures)', () => {
     await user.click(screen.getByRole('button', { name: 'Solicitar importação' }))
     await screen.findByText('A exportação IBM ainda está em processamento.')
     await user.click(screen.getByRole('link', { name: '← Fluxos' }))
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     await user.click(await screen.findByRole('button', { name: 'Sair' }))
-    expect(confirm).toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toHaveTextContent('operação pendente')
     expect(fetchMock.mock.calls.some(call => call[0].endsWith('/auth/logout'))).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
     await user.click(await screen.findByRole('link', { name: 'Importar fluxo' }))
     expect(await screen.findByText('A exportação IBM ainda está em processamento.')).toBeInTheDocument()
     expect(fetchMock.mock.calls.filter(call => call[0].endsWith('/imports'))).toHaveLength(1)

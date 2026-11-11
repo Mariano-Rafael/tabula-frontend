@@ -11,6 +11,7 @@ import { TargetsPage } from '../features/integrations/TargetsPage'
 import { ImportPage } from '../features/flows/ImportPage'
 import { errorMessage } from '../shared/api/client'
 import { Button } from '../shared/ui/button'
+import { ConfirmProvider } from '../shared/ui/ConfirmDialog'
 const EditorPage = lazy(() => import('../features/editor/EditorPage').then(module => ({ default: module.EditorPage })))
 
 function PortfolioRoute() {
@@ -46,5 +47,5 @@ function AppRoutes() {
 export function App() {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false }, mutations: { retry: false } } }))
   const [router] = useState(() => createBrowserRouter([{ path: '*', element: <AuthProvider><AppRoutes /></AuthProvider> }]))
-  return <QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>
+  return <QueryClientProvider client={queryClient}><ConfirmProvider><RouterProvider router={router} /></ConfirmProvider></QueryClientProvider>
 }

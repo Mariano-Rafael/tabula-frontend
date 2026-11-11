@@ -25,6 +25,6 @@ export interface Flow {
   id: string
   projectId: string
   name: string
-  type: 'DIALOG' | 'ACTION'
+  type: 'DIALOG' | 'ACTION' | 'LOCAL'
   archived: boolean
 }

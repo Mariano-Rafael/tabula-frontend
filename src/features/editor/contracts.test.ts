@@ -15,6 +15,15 @@ describe('contrato de diagrama e layout (fixtures)', () => {
     expect(result).toEqual({ schemaVersion: 1, nodes: [layout.nodes[0], { ...layout.nodes[1], position: { x: 30, y: 40 } }, layout.nodes[2], { id: 'new', position: { x: 50, y: 60 } }], viewport: { x: 4, y: 5, zoom: 2 } })
   })
 
+  it('salva tipos visuais e remove apenas nós visuais explicitamente selecionados', () => {
+    const stored: Layout = { ...layout, nodes: [...layout.nodes, { id: 'visual:1', position: { x: 1, y: 1 }, visualType: 'text' }, { id: 'visual:2', position: { x: 2, y: 2 }, visualType: 'options' }] }
+    const result = buildLayout([{ id: 'visual:3', position: { x: 3, y: 3 }, data: { visualType: 'generative' } }], stored, { x: 0, y: 0, zoom: 1 }, new Set(['visual:1', 'orphan']))
+    expect(result.nodes).toContainEqual({ id: 'visual:3', position: { x: 3, y: 3 }, visualType: 'generative' })
+    expect(result.nodes).toContainEqual(stored.nodes[4])
+    expect(result.nodes).toContainEqual(stored.nodes[2])
+    expect(result.nodes.some(node => node.id === 'visual:1')).toBe(false)
+  })
+
   it('preserva ETag e identifica o layout ausente somente pelo código correto', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(diagram)).mockResolvedValueOnce(json(layout, 200, { ETag: '"layout-3"' })))
     await expect(loadEditor('flow', null)).resolves.toMatchObject({ layout, etag: '"layout-3"' })

@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearCsrf } from '../../shared/api/client'
+import { ConfirmProvider } from '../../shared/ui/ConfirmDialog'
 import { CreateVersion } from './CreateVersion'
 
 vi.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ account: { id: 'user' } }) }))
@@ -12,12 +13,11 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
 const ready = { id: 'v1', flowId: 'flow', number: 2, state: 'READY', errorCode: null }
 function setup(fetchMock: ReturnType<typeof vi.fn>, disabled = false) {
   vi.stubGlobal('fetch', fetchMock)
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(['session'], { id: 'user' })
   const open = vi.fn()
   const reload = vi.fn().mockResolvedValue(undefined)
-  render(<QueryClientProvider client={client}><CreateVersion flowId="flow" revision={3} disabled={disabled} onBusyChange={vi.fn()} onOpen={open} onReload={reload} /></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><ConfirmProvider><CreateVersion flowId="flow" revision={3} disabled={disabled} onBusyChange={vi.fn()} onOpen={open} onReload={reload} /></ConfirmProvider></QueryClientProvider>)
   return { open, reload }
 }
 afterEach(() => { cleanup(); clearCsrf(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -28,6 +28,7 @@ describe('versões de rascunho (fixtures)', () => {
     const { open } = setup(fetchMock)
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Criar versão' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
     await user.click(await screen.findByRole('button', { name: 'Abrir versão 2' }))
     const init = fetchMock.mock.calls[1][1]
     expect(init.method).toBe('POST')
@@ -43,6 +44,7 @@ describe('versões de rascunho (fixtures)', () => {
     setup(fetchMock)
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Criar versão' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
     expect(await screen.findByText(/resultado é incerto/)).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
     await user.click(screen.getByRole('button', { name: 'Repetir mesma solicitação' }))
@@ -58,9 +60,11 @@ describe('versões de rascunho (fixtures)', () => {
     const { reload } = setup(fetchMock)
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Criar versão' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('revisão do rascunho mudou')
     expect(reload).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Recarregar rascunho' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
     await waitFor(() => expect(reload).toHaveBeenCalledOnce())
     expect(await screen.findByRole('button', { name: 'Criar versão' })).toBeEnabled()
   })
@@ -70,6 +74,7 @@ describe('versões de rascunho (fixtures)', () => {
     setup(fetchMock)
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Criar versão' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
     expect(await screen.findByText(/Consultar não reconcilia/i)).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
     await user.click(screen.getByRole('button', { name: 'Reconciliar versão' }))

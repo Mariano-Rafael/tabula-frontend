@@ -35,6 +35,7 @@ describe('fluxos da aplicação (fixtures)', () => {
     render(<App />)
     expect(screen.getByText('Verificando sua sessão...')).toBeInTheDocument()
     expect(await screen.findByText('Nenhum portfólio por aqui')).toBeInTheDocument()
+    expect(screen.getByText('Nenhum portfólio por aqui').parentElement?.querySelector('.empty-icon[aria-hidden="true"] svg')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Tabula' }).querySelector('img')).toHaveAttribute('src', expect.stringContaining('tabula-symbol.png'))
     await user.click(screen.getByRole('button', { name: '+ Novo Portfólio' }))
     await user.type(screen.getByLabelText('Nome'), 'Operações')
@@ -199,7 +200,52 @@ describe('fluxos da aplicação (fixtures)', () => {
     render(<App />)
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível verificar a permissão de edição')
     expect(screen.queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Arquivar portfólio' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Primeiro/ })).toBeInTheDocument()
+  })
+
+  it('arquiva portfólio com confirmação e CSRF', async () => {
+    let archived = false
+    const fallback = fixtureFetch()
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      if (url.includes('/members?')) return json({ content: [{ userId: 'u1', role: 'OWNER' }], page: 0, size: 100, totalElements: 1, totalPages: 1 })
+      if (url.includes('/portfolios?')) return json({ content: archived ? [] : [{ id: 'p1', name: 'Operações', description: null, archived: false }], page: 0, size: 20, totalElements: archived ? 0 : 1, totalPages: archived ? 0 : 1 })
+      if (url.endsWith('/portfolios/p1') && init.method === 'DELETE') { archived = true; return new Response(null, { status: 204 }) }
+      return fallback(url, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Editar Operações' }))
+    await user.click(screen.getByRole('button', { name: 'Arquivar portfólio' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('seus projetos não poderão ser editados')
+    expect(fetchMock.mock.calls.some(call => call[1].method === 'DELETE')).toBe(false)
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+    await user.click(screen.getByRole('button', { name: 'Arquivar portfólio' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByText('Nenhum portfólio por aqui')).toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(item => item[1].method === 'DELETE')!
+    expect(call[0]).toBe('/api/v1/portfolios/p1')
+    expect(new Headers(call[1].headers).get('X-CSRF-TOKEN')).toBe('token-1')
+  })
+
+  it('preserva a edição quando o arquivamento do portfólio falha', async () => {
+    const fallback = fixtureFetch()
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      if (url.includes('/members?')) return json({ content: [{ userId: 'u1', role: 'OWNER' }], page: 0, size: 100, totalElements: 1, totalPages: 1 })
+      if (url.includes('/portfolios?')) return json({ content: [{ id: 'p1', name: 'Operações', description: null, archived: false }], page: 0, size: 20, totalElements: 1, totalPages: 1 })
+      if (url.endsWith('/portfolios/p1') && init.method === 'DELETE') return json({ code: 'ACCESS_DENIED' }, 403, true)
+      return fallback(url, init)
+    }))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Editar Operações' }))
+    await user.clear(screen.getByLabelText('Nome'))
+    await user.type(screen.getByLabelText('Nome'), 'Nome preservado')
+    await user.click(screen.getByRole('button', { name: 'Arquivar portfólio' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível arquivar o portfólio.')
+    expect(screen.getByLabelText('Nome')).toHaveValue('Nome preservado')
   })
 
   it('mantém os dados preenchidos quando a edição falha', async () => {

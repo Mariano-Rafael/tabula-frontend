@@ -2,6 +2,7 @@ import { ApiError, request } from '../../shared/api/client'
 
 export interface Point { x: number; y: number }
 export interface Viewport extends Point { zoom: number }
+export type VisualNodeType = 'text' | 'generative' | 'options'
 export interface LayoutNode {
   id: string
   position: Point
@@ -9,11 +10,12 @@ export interface LayoutNode {
   width?: number | null
   height?: number | null
   collapsed?: boolean | null
+  visualType?: VisualNodeType | null
 }
 export interface Layout { flowId: string; revision: number; schemaVersion: number; nodes: LayoutNode[]; viewport: Viewport | null }
 export interface DiagramNode {
   id: string
-  type: 'ibmDialog' | 'ibmAction' | 'group'
+  type: 'ibmDialog' | 'ibmAction' | 'group' | 'visual'
   position: Point
   parentId: string | null
   style: { width?: number; height?: number }
@@ -57,9 +59,9 @@ export async function loadEditor(flowId: string, versionId: string | null, signa
   return { diagram, layout, etag }
 }
 
-export function buildLayout(nodes: { id: string; position: Point }[], existing: Layout | null, viewport: Viewport) {
-  const updates = new Map(nodes.map(node => [node.id, { id: node.id, position: node.position }]))
-  const retained = (existing?.nodes ?? []).map(node => {
+export function buildLayout(nodes: { id: string; position: Point; data?: { visualType?: VisualNodeType } }[], existing: Layout | null, viewport: Viewport, removedVisualIds: ReadonlySet<string> = new Set()) {
+  const updates = new Map(nodes.map(node => [node.id, { id: node.id, position: node.position, ...(node.data?.visualType ? { visualType: node.data.visualType } : {}) }]))
+  const retained = (existing?.nodes ?? []).filter(node => !node.visualType || !removedVisualIds.has(node.id)).map(node => {
     const updated = updates.get(node.id)
     if (!updated) return node
     updates.delete(node.id)

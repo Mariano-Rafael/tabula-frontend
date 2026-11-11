@@ -10,6 +10,8 @@ import { AppShell } from '../../shared/ui/AppShell'
 import { Button } from '../../shared/ui/button'
 import { CatalogFooter, CatalogIcon, CatalogStack } from '../../shared/ui/CatalogVisuals'
 import { CreationDrawer } from '../../shared/ui/CreationDrawer'
+import { useConfirm } from '../../shared/ui/ConfirmDialog'
+import { EmptyIcon } from '../../shared/ui/EmptyIcon'
 import { Pagination } from '../../shared/ui/Pagination'
 import { useCanEditPortfolio } from '../portfolios/permissions'
 
@@ -19,8 +21,9 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
-function ProjectCard({ project, canEdit }: { project: Project; canEdit: boolean }) {
+function ProjectCard({ project, canEdit, onArchived }: { project: Project; canEdit: boolean; onArchived: () => void }) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema), defaultValues: { name: project.name, description: project.description ?? '' },
@@ -36,9 +39,19 @@ function ProjectCard({ project, canEdit }: { project: Project; canEdit: boolean 
       await queryClient.invalidateQueries({ queryKey: ['projects', project.portfolioId] })
     },
   })
+  const archive = useMutation({
+    mutationFn: () => request<void>(`/projects/${encodeURIComponent(project.id)}`, { method: 'DELETE' }),
+    retry: false,
+    onSuccess: async () => {
+      onArchived()
+      await queryClient.invalidateQueries({ queryKey: ['projects', project.portfolioId] })
+      await queryClient.invalidateQueries({ queryKey: ['project', project.id] })
+    },
+  })
   function startEditing() {
     reset({ name: project.name, description: project.description ?? '' })
     update.reset()
+    archive.reset()
     setEditing(true)
   }
   return <article className={`portfolio-tile${editing ? ' portfolio-tile-editing' : ''}`}>
@@ -50,7 +63,11 @@ function ProjectCard({ project, canEdit }: { project: Project; canEdit: boolean 
       <label>Nome<input maxLength={120} {...register('name')} aria-invalid={!!errors.name} />{errors.name && <span className="field-error">{errors.name.message}</span>}</label>
       <label>Descrição <span className="muted">(opcional)</span><textarea rows={3} maxLength={1000} {...register('description')} aria-invalid={!!errors.description} />{errors.description && <span className="field-error">{errors.description.message}</span>}</label>
       {update.isError && <p className="error-box" role="alert">{errorMessage(update.error)}</p>}
-      <div className="portfolio-edit-actions"><Button type="submit" disabled={update.isPending}>{update.isPending ? 'Salvando...' : 'Salvar alterações'}</Button><Button type="button" variant="outline" disabled={update.isPending} onClick={() => setEditing(false)}>Cancelar</Button></div>
+      {archive.isError && <p className="error-box" role="alert">Não foi possível arquivar o projeto. {errorMessage(archive.error)}</p>}
+      <div className="portfolio-edit-actions"><Button type="submit" disabled={update.isPending || archive.isPending}>{update.isPending ? 'Salvando...' : 'Salvar alterações'}</Button><Button type="button" variant="outline" disabled={update.isPending || archive.isPending} onClick={() => setEditing(false)}>Cancelar</Button></div>
+      <button className="flow-archive" type="button" disabled={update.isPending || archive.isPending} onClick={async () => {
+        if (await confirm(`Arquivar "${project.name}"? Alterações não salvas serão descartadas. O projeto sairá da lista e seus fluxos não poderão ser editados enquanto estiver arquivado. Não há restauração pela interface; o conteúdo na IBM não será alterado.`)) archive.mutate()
+      }}>{archive.isPending ? 'Arquivando...' : 'Arquivar projeto'}</button>
     </form> : <Link className="portfolio-tile-link" to={`/projects/${encodeURIComponent(project.id)}`}>
       <h2>{project.name}</h2><p>{project.description || 'Sem descrição.'}</p><CatalogStack />
       <span className="portfolio-tile-action">Ver fluxos <span aria-hidden="true">↗</span></span>
@@ -85,9 +102,9 @@ export function ProjectsPage() {
         {create.isError && <p className="error-box" role="alert">{errorMessage(create.error)}</p>}
         <div className="portfolio-drawer-actions"><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Criando...' : 'Criar projeto'}</Button><Button type="button" variant="outline" disabled={create.isPending} onClick={() => setShowForm(false)}>Cancelar</Button></div>
       </form></CreationDrawer>}
-      {projects.isPending ? <div className="panel" role="status">Carregando projetos...</div> : projects.isError ? <div className="panel"><p role="alert">{errorMessage(projects.error)}</p><Button variant="outline" onClick={() => void projects.refetch()}>Tentar novamente</Button></div> : projects.data.content.length === 0 ? <div className="panel empty"><h2>Nenhum projeto neste portfólio</h2><p className="muted">{permission.data ? 'Crie um projeto para organizar seus fluxos.' : 'Os projetos disponíveis aparecerão aqui.'}</p></div> : <>
+      {projects.isPending ? <div className="panel" role="status">Carregando projetos...</div> : projects.isError ? <div className="panel"><p role="alert">{errorMessage(projects.error)}</p><Button variant="outline" onClick={() => void projects.refetch()}>Tentar novamente</Button></div> : projects.data.content.length === 0 ? <div className="panel empty"><EmptyIcon /><h2>Nenhum projeto neste portfólio</h2><p className="muted">{permission.data ? 'Crie um projeto para organizar seus fluxos.' : 'Os projetos disponíveis aparecerão aqui.'}</p></div> : <>
         <p className="list-label">{projects.data.totalElements} {projects.data.totalElements === 1 ? 'PROJETO' : 'PROJETOS'}</p>
-        <div className="portfolio-grid">{projects.data.content.map(project => <ProjectCard key={project.id} project={project} canEdit={!!permission.data && !portfolio.data.archived && !project.archived} />)}</div>
+        <div className="portfolio-grid">{projects.data.content.map(project => <ProjectCard key={project.id} project={project} canEdit={!!permission.data && !portfolio.data.archived && !project.archived} onArchived={() => { if (page > 0 && projects.data.content.length === 1) setPage(current => Math.max(0, current - 1)) }} />)}</div>
         <Pagination result={projects.data} page={page} onChange={setPage} />
       </>}
     </>}

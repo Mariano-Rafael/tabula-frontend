@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { ApiError, errorMessage, request } from '../../shared/api/client'
 import { Button } from '../../shared/ui/button'
+import { useConfirm } from '../../shared/ui/ConfirmDialog'
 
 interface Version { id: string; flowId: string; number: number; state: string; errorCode: string | null }
 interface Intent {
@@ -13,12 +14,13 @@ interface Intent {
   message: string
 }
 
-export function CreateVersion({ flowId, revision, disabled, onBusyChange, onOpen, onReload }: {
+export function CreateVersion({ flowId, revision, disabled, onBusyChange, onOpen, onReload, local = false }: {
   flowId: string; revision: number; disabled: boolean; onBusyChange: (busy: boolean) => void
-  onOpen: (versionId: string) => void; onReload: () => Promise<void>
+  onOpen: (versionId: string) => void; onReload: () => Promise<void>; local?: boolean
 }) {
   const { account } = useAuth()
   const client = useQueryClient()
+  const confirm = useConfirm()
   const key = ['version-intent', account?.id, flowId]
   const { data: intent } = useQuery<Intent | null>({ queryKey: key, queryFn: () => null, initialData: null, enabled: false, gcTime: Infinity, staleTime: Infinity })
   const [busy, setBusy] = useState(false)
@@ -62,21 +64,21 @@ export function CreateVersion({ flowId, revision, disabled, onBusyChange, onOpen
     } finally { setBusy(false); onBusyChange(false) }
   }
   async function reload() {
-    if (!window.confirm('Recarregar o rascunho para conferir a revisão atual?')) return
+    if (!await confirm('Recarregar o rascunho para conferir a revisão atual?')) return
     setBusy(true); onBusyChange(true)
     try { await onReload(); store(null) }
     catch { store(intent && { ...intent, message: 'Não foi possível recarregar o rascunho. Tente novamente.' }) }
     finally { setBusy(false); onBusyChange(false) }
   }
-  function clear() {
-    if (intent && ['uncertain', 'pending'].includes(intent.status) && !window.confirm('O resultado ainda pode estar pendente. Descartar a intenção pode causar uma versão duplicada. Continuar?')) return
+  async function clear() {
+    if (intent && ['uncertain', 'pending'].includes(intent.status) && !await confirm('O resultado ainda pode estar pendente. Descartar a intenção pode causar uma versão duplicada. Continuar?')) return
     store(null)
   }
   return <section className="panel node-editor">
     <h2>Criar versão do rascunho</h2>
-    <p className="muted">Cria um snapshot local da revisão {revision}. Não inclui o layout nem altera a IBM.</p>
-    {!intent && <Button disabled={disabled || busy} onClick={() => {
-      if (!window.confirm('Criar uma versão local desta revisão do rascunho?')) return
+    <p className="muted">{local ? `Cria um snapshot completo do canvas salvo na revisão ${revision}.` : `Cria um snapshot local da revisão ${revision}. Não inclui o layout nem altera a IBM.`}</p>
+    {!intent && <Button disabled={disabled || busy} onClick={async () => {
+      if (!await confirm('Criar uma versão local desta revisão do rascunho?')) return
       const next: Intent = { key: crypto.randomUUID(), revision, status: 'sending', version: null, message: '' }
       store(next); void send(next)
     }}>Criar versão</Button>}
@@ -88,7 +90,7 @@ export function CreateVersion({ flowId, revision, disabled, onBusyChange, onOpen
       {intent.status === 'uncertain' && <><p>O resultado é incerto. Repita apenas a mesma intenção, com a mesma chave e revisão.</p><Button variant="outline" disabled={busy} onClick={() => void send(intent)}>Repetir mesma solicitação</Button></>}
       {intent.status === 'conflict' && <Button variant="outline" disabled={busy || disabled} onClick={() => void reload()}>Recarregar rascunho</Button>}
       {intent.status === 'failed' && <p role="alert">A versão falhou: {intent.version?.errorCode || 'código não informado'}.</p>}
-      {intent.status !== 'sending' && intent.status !== 'conflict' && <div className="source-picker"><Button variant="outline" disabled={busy} onClick={clear}>{intent.status === 'ready' || intent.status === 'failed' ? 'Criar outra versão' : 'Descartar intenção'}</Button></div>}
+      {intent.status !== 'sending' && intent.status !== 'conflict' && <div className="source-picker"><Button variant="outline" disabled={busy} onClick={() => void clear()}>{intent.status === 'ready' || intent.status === 'failed' ? 'Criar outra versão' : 'Descartar intenção'}</Button></div>}
       {['uncertain', 'pending'].includes(intent.status) && <p className="muted">A intenção é mantida em memória ao navegar, mas será perdida ao atualizar a página ou encerrar a sessão. Consulte as versões antes de criar outra.</p>}
     </>}
   </section>

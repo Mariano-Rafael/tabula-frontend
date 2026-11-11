@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, errorMessage, request } from '../../shared/api/client'
 import { Button } from '../../shared/ui/button'
+import { useConfirm } from '../../shared/ui/ConfirmDialog'
 import type { DiagramNode } from './contracts'
 
 interface TextValue { responseIndex: number; valueIndex: number; text: string }
@@ -27,6 +28,7 @@ export function DialogNodeEditor({ flowId, node, revision, disabled, onDirty, on
   onDirty: (dirty: boolean) => void; onSaving: (saving: boolean) => void; onReload: () => Promise<void>
 }) {
   const initial = useMemo(() => values(node.data.original), [node])
+  const confirm = useConfirm()
   const [title, setTitle] = useState(initial.title)
   const [conditions, setConditions] = useState(initial.conditions)
   const [texts, setTexts] = useState(initial.texts)
@@ -69,7 +71,7 @@ export function DialogNodeEditor({ flowId, node, revision, disabled, onDirty, on
       {disabled && <p className="notice">Salve ou descarte as alterações de layout antes de editar o conteúdo.</p>}
       {error && <p className="error-box" role="alert">{error}</p>}
       <div className="source-picker"><Button disabled={!dirty || saving || conflict || disabled} onClick={() => void save()}>{saving ? 'Salvando...' : 'Salvar alterações do nó'}</Button>
-      {conflict && <Button variant="outline" disabled={saving} onClick={async () => { if (!window.confirm('Descartar alterações do nó e recarregar o rascunho?')) return; setSaving(true); try { await onReload(); onDirty(false) } catch { setError('Não foi possível recarregar o rascunho. Suas alterações foram mantidas.') } finally { setSaving(false) } }}>Descartar alterações e recarregar nó</Button>}</div>
+      {conflict && <Button variant="outline" disabled={saving} onClick={async () => { if (!await confirm('Descartar alterações do nó e recarregar o rascunho?')) return; setSaving(true); try { await onReload(); onDirty(false) } catch { setError('Não foi possível recarregar o rascunho. Suas alterações foram mantidas.') } finally { setSaving(false) } }}>Descartar alterações e recarregar nó</Button>}</div>
     </div>
   </section>
 }

@@ -8,7 +8,9 @@ import { errorMessage, request } from '../../shared/api/client'
 import type { Page, Portfolio } from '../../shared/api/types'
 import { AppShell } from '../../shared/ui/AppShell'
 import { CatalogFooter, CatalogIcon, CatalogStack } from '../../shared/ui/CatalogVisuals'
+import { EmptyIcon } from '../../shared/ui/EmptyIcon'
 import { CreationDrawer } from '../../shared/ui/CreationDrawer'
+import { useConfirm } from '../../shared/ui/ConfirmDialog'
 import { Pagination } from '../../shared/ui/Pagination'
 import { Button } from '../../shared/ui/button'
 import { useAuth } from '../auth/AuthProvider'
@@ -20,8 +22,9 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
-function PortfolioCard({ item }: { item: Portfolio }) {
+function PortfolioCard({ item, onArchived }: { item: Portfolio; onArchived: () => void }) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const permission = usePortfolioPermissions(item.id)
   const [editing, setEditing] = useState(false)
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
@@ -39,9 +42,20 @@ function PortfolioCard({ item }: { item: Portfolio }) {
       await queryClient.invalidateQueries({ queryKey: ['portfolios'] })
     },
   })
+  const archive = useMutation({
+    mutationFn: () => request<void>(`/portfolios/${encodeURIComponent(item.id)}`, { method: 'DELETE' }),
+    retry: false,
+    onSuccess: async () => {
+      onArchived()
+      await queryClient.invalidateQueries({ queryKey: ['portfolios'] })
+      await queryClient.invalidateQueries({ queryKey: ['portfolio', item.id] })
+      await queryClient.invalidateQueries({ queryKey: ['projects', item.id] })
+    },
+  })
   function startEditing() {
     reset({ name: item.name, description: item.description ?? '' })
     update.reset()
+    archive.reset()
     setEditing(true)
   }
   return <article className={`portfolio-tile${editing ? ' portfolio-tile-editing' : ''}`}>
@@ -56,7 +70,11 @@ function PortfolioCard({ item }: { item: Portfolio }) {
       <label>Nome<input maxLength={120} {...register('name')} aria-invalid={!!errors.name} />{errors.name && <span className="field-error">{errors.name.message}</span>}</label>
       <label>Descrição <span className="muted">(opcional)</span><textarea rows={3} maxLength={1000} {...register('description')} aria-invalid={!!errors.description} />{errors.description && <span className="field-error">{errors.description.message}</span>}</label>
       {update.isError && <p className="error-box" role="alert">{errorMessage(update.error)}</p>}
-      <div className="portfolio-edit-actions"><Button type="submit" disabled={update.isPending}>{update.isPending ? 'Salvando...' : 'Salvar alterações'}</Button><Button type="button" variant="outline" disabled={update.isPending} onClick={() => setEditing(false)}>Cancelar</Button></div>
+      {archive.isError && <p className="error-box" role="alert">Não foi possível arquivar o portfólio. {errorMessage(archive.error)}</p>}
+      <div className="portfolio-edit-actions"><Button type="submit" disabled={update.isPending || archive.isPending}>{update.isPending ? 'Salvando...' : 'Salvar alterações'}</Button><Button type="button" variant="outline" disabled={update.isPending || archive.isPending} onClick={() => setEditing(false)}>Cancelar</Button></div>
+      <button className="flow-archive" type="button" disabled={update.isPending || archive.isPending} onClick={async () => {
+        if (await confirm(`Arquivar "${item.name}"? Alterações não salvas serão descartadas. O portfólio sairá da lista e seus projetos não poderão ser editados enquanto estiver arquivado. Não há restauração pela interface; o conteúdo na IBM não será alterado.`)) archive.mutate()
+      }}>{archive.isPending ? 'Arquivando...' : 'Arquivar portfólio'}</button>
     </form> : <Link className="portfolio-tile-link" to={`/portfolios/${encodeURIComponent(item.id)}`}>
       <h2>{item.name}</h2><p>{item.description || 'Sem descrição.'}</p>
       <CatalogStack />
@@ -97,9 +115,9 @@ export function PortfoliosPage() {
       {create.isError && <p className="error-box" role="alert">{errorMessage(create.error)}</p>}
       <div className="portfolio-drawer-actions"><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Criando...' : 'Criar portfólio'}</Button><Button type="button" variant="outline" disabled={create.isPending} onClick={() => setShowForm(false)}>Cancelar</Button></div>
     </form></CreationDrawer>}
-    {portfolios.isPending ? <div className="panel" role="status">Carregando portfólios...</div> : portfolios.isError ? <div className="panel"><p role="alert">{errorMessage(portfolios.error)}</p><Button variant="outline" onClick={() => void portfolios.refetch()}>Tentar novamente</Button></div> : portfolios.data.content.length === 0 ? <div className="panel empty"><div className="empty-icon">◇</div><h2>Nenhum portfólio por aqui</h2><p className="muted">Crie seu primeiro portfólio para começar a organizar seu trabalho.</p><Button onClick={() => { create.reset(); setShowForm(true) }}>Criar portfólio</Button></div> : <>
+    {portfolios.isPending ? <div className="panel" role="status">Carregando portfólios...</div> : portfolios.isError ? <div className="panel"><p role="alert">{errorMessage(portfolios.error)}</p><Button variant="outline" onClick={() => void portfolios.refetch()}>Tentar novamente</Button></div> : portfolios.data.content.length === 0 ? <div className="panel empty"><EmptyIcon /><h2>Nenhum portfólio por aqui</h2><p className="muted">Crie seu primeiro portfólio para começar a organizar seu trabalho.</p><Button onClick={() => { create.reset(); setShowForm(true) }}>Criar portfólio</Button></div> : <>
       <p className="list-label">{portfolios.data.totalElements} {portfolios.data.totalElements === 1 ? 'PORTFÓLIO' : 'PORTFÓLIOS'}</p>
-      <div className="portfolio-grid">{portfolios.data.content.map(item => <PortfolioCard key={item.id} item={item} />)}</div>
+      <div className="portfolio-grid">{portfolios.data.content.map(item => <PortfolioCard key={item.id} item={item} onArchived={() => { if (page > 0 && portfolios.data.content.length === 1) setPage(current => Math.max(0, current - 1)) }} />)}</div>
       <Pagination result={portfolios.data} page={page} onChange={setPage} />
     </>}
   </AppShell>

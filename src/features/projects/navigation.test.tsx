@@ -21,9 +21,25 @@ function fixture(role = 'EDITOR') {
   })
 }
 beforeEach(() => window.history.pushState({}, '', '/portfolios'))
-afterEach(() => { cleanup(); clearCsrf(); setUnauthorizedHandler(null); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); clearCsrf(); setUnauthorizedHandler(null); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('navegação por portfólio, projeto e fluxo (fixtures)', () => {
+  it('apresenta o emoji nos estados vazios de projetos e fluxos', async () => {
+    const fallback = fixture()
+    vi.stubGlobal('fetch', vi.fn((url: string, init: RequestInit) => {
+      if (url.includes('/portfolios/a/projects?') || url.includes('/projects/p/flows?')) return Promise.resolve(json(page([])))
+      return fallback(url, init)
+    }))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('link', { name: /Portfólio A/ }))
+    expect((await screen.findByText('Nenhum projeto neste portfólio')).parentElement?.querySelector('.empty-icon[aria-hidden="true"] svg')).toBeInTheDocument()
+    cleanup()
+    window.history.pushState({}, '', '/projects/p')
+    render(<App />)
+    expect((await screen.findByText('Nenhum fluxo neste projeto')).parentElement?.querySelector('.empty-icon[aria-hidden="true"] svg')).toBeInTheDocument()
+  })
+
   it('navega pelas listagens existentes e oferece rota para o diagrama', async () => {
     vi.stubGlobal('fetch', fixture())
     const user = userEvent.setup()
@@ -128,40 +144,77 @@ describe('navegação por portfólio, projeto e fluxo (fixtures)', () => {
     expect(screen.queryByRole('button', { name: '+ Novo fluxo' })).not.toBeInTheDocument()
   })
 
-  it('apresenta prévias de fluxo local e vínculo escolhido sem criar dados reais', async () => {
-    const fetchMock = fixture()
+  it('cria fluxo local com idempotência e fecha o painel após sucesso', async () => {
+    const fallback = fixture()
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/projects/p/local-flows')) return Promise.resolve(json({ id: 'v-local', flowId: 'local', projectId: 'p', state: 'READY' }, 201))
+      return fallback(url, init)
+    })
     vi.stubGlobal('fetch', fetchMock)
     const user = userEvent.setup()
     render(<App />)
     await user.click(await screen.findByRole('link', { name: /Portfólio A/ }))
     await user.click(await screen.findByRole('link', { name: /Projeto A/ }))
-    const opener = await screen.findByRole('button', { name: '+ Novo fluxo' })
-    await user.click(opener)
+    await user.click(await screen.findByRole('button', { name: '+ Novo fluxo' }))
     const dialog = screen.getByRole('dialog', { name: 'Novo fluxo.' })
-    expect(within(dialog).getByText(/nenhum fluxo ou vínculo será salvo/)).toBeInTheDocument()
-    await user.click(within(dialog).getByRole('button', { name: 'Adicionar prévia' }))
-    expect(await within(dialog).findByText('Informe o nome do fluxo.')).toBeInTheDocument()
     await user.type(within(dialog).getByLabelText('Nome'), 'Atendimento local')
-    await user.click(within(dialog).getByRole('button', { name: 'Adicionar prévia' }))
-    expect(opener).toHaveFocus()
-    const localCard = screen.getByText('Atendimento local').closest('article')!
-    expect(within(localCard).getByText('Dialog · Local · sem vínculo IBM')).toBeInTheDocument()
-    expect(within(localCard).getByText('PRÉVIA · NÃO SALVO')).toBeInTheDocument()
-    expect(within(localCard).queryByRole('link')).not.toBeInTheDocument()
-    await user.click(opener)
-    await user.type(screen.getByLabelText('Nome'), 'Atendimento IBM')
-    await user.click(screen.getByRole('checkbox', { name: 'Vincular a um fluxo existente na IBM' }))
-    expect(screen.getByText(/Nenhum vínculo será criado/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Adicionar prévia' }))
-    const ibmCard = screen.getByText('Atendimento IBM').closest('article')!
-    expect(within(ibmCard).getByText('Dialog · Vínculo IBM selecionado — não configurado')).toBeInTheDocument()
-    expect(within(ibmCard).queryByRole('link')).not.toBeInTheDocument()
-    expect(fetchMock.mock.calls.some(call => call[1].method === 'POST')).toBe(false)
-    await user.click(within(ibmCard).getByRole('button', { name: 'Remover prévia Atendimento IBM' }))
-    expect(screen.queryByText('Atendimento IBM')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('link', { name: '← Projetos' }))
-    await user.click(await screen.findByRole('link', { name: /Projeto A/ }))
-    expect(screen.queryByText('Atendimento local')).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Criar fluxo local' }))
+    expect(await screen.findByText('Fluxo criado com sucesso.')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '+ Novo fluxo' }))
+    expect(screen.getByLabelText('Nome')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: 'Criar outro fluxo' })).not.toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(item => item[0].endsWith('/local-flows'))!
+    expect(JSON.parse(String(call[1].body))).toEqual({ name: 'Atendimento local' })
+    expect(new Headers(call[1].headers).get('Idempotency-Key')).toBeTruthy()
+    expect(new Headers(call[1].headers).get('X-CSRF-TOKEN')).toBe('fixture')
+  })
+
+  it('repete criação local incerta com a mesma chave e corpo', async () => {
+    const fallback = fixture()
+    let attempts = 0
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/projects/p/local-flows')) {
+        attempts++
+        return attempts === 1 ? Promise.reject(new TypeError('offline')) : Promise.resolve(json({ id: 'v-local', flowId: 'local', projectId: 'p', state: 'READY' }, 201))
+      }
+      return fallback(url, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    window.history.pushState({}, '', '/projects/p')
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: '+ Novo fluxo' }))
+    await user.type(screen.getByLabelText('Nome'), 'Local')
+    await user.click(screen.getByRole('button', { name: 'Criar fluxo local' }))
+    await user.click(await screen.findByRole('button', { name: 'Repetir mesma solicitação' }))
+    expect(await screen.findByText('Fluxo criado com sucesso.')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    const calls = fetchMock.mock.calls.filter(item => item[0].endsWith('/local-flows'))
+    expect(calls).toHaveLength(2)
+    expect(calls[0][1].body).toBe(calls[1][1].body)
+    expect(new Headers(calls[0][1].headers).get('Idempotency-Key')).toBe(new Headers(calls[1][1].headers).get('Idempotency-Key'))
+  })
+
+  it('mantém o painel enquanto a versão está pendente e fecha após reconciliação', async () => {
+    const fallback = fixture()
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/projects/p/local-flows')) return Promise.resolve(json({ id: 'v-local', flowId: 'local', projectId: 'p', state: 'PENDING' }, 202))
+      if (url.endsWith('/versions/v-local/reconcile')) return Promise.resolve(json({ id: 'v-local', flowId: 'local', projectId: 'p', state: 'READY' }))
+      return fallback(url, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    window.history.pushState({}, '', '/projects/p')
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: '+ Novo fluxo' }))
+    await user.type(screen.getByLabelText('Nome'), 'Local')
+    await user.click(screen.getByRole('button', { name: 'Criar fluxo local' }))
+    expect(await screen.findByText('Versão inicial pendente.')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Reconciliar versão' }))
+    expect(await screen.findByText('Fluxo criado com sucesso.')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('edita dados do projeto e nome do fluxo com CSRF', async () => {
@@ -221,6 +274,109 @@ describe('navegação por portfólio, projeto e fluxo (fixtures)', () => {
     await user.type(screen.getByLabelText('Nome'), 'Nome preservado')
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Acesso negado')
+    expect(screen.getByLabelText('Nome')).toHaveValue('Nome preservado')
+  })
+
+  it('arquiva projeto somente após confirmação, com CSRF e atualização da lista', async () => {
+    let archived = false
+    const fallback = fixture()
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/projects/p') && init.method === 'DELETE') {
+        archived = true
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (url.includes('/portfolios/a/projects?') && archived) return Promise.resolve(json(page([])))
+      return fallback(url, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
+    window.history.pushState({}, '', '/portfolios/a')
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Editar Projeto A' }))
+    await user.click(screen.getByRole('button', { name: 'Arquivar projeto' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('seus fluxos não poderão ser editados')
+    expect(fetchMock.mock.calls.some(call => call[1].method === 'DELETE')).toBe(false)
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+    expect(fetchMock.mock.calls.some(call => call[1].method === 'DELETE')).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Arquivar projeto' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByText('Nenhum projeto neste portfólio')).toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(item => item[1].method === 'DELETE')!
+    expect(call[0]).toBe('/api/v1/projects/p')
+    expect(new Headers(call[1].headers).get('X-CSRF-TOKEN')).toBe('fixture')
+  })
+
+  it('mantém a edição e exibe erro se o arquivamento do projeto falhar', async () => {
+    const fallback = fixture()
+    vi.stubGlobal('fetch', vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/projects/p') && init.method === 'DELETE') return Promise.resolve(json({ code: 'ACCESS_DENIED' }, 403))
+      return fallback(url, init)
+    }))
+    const user = userEvent.setup()
+    window.history.pushState({}, '', '/portfolios/a')
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Editar Projeto A' }))
+    await user.clear(screen.getByLabelText('Nome'))
+    await user.type(screen.getByLabelText('Nome'), 'Nome preservado')
+    await user.click(screen.getByRole('button', { name: 'Arquivar projeto' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível arquivar o projeto.')
+    expect(screen.getByLabelText('Nome')).toHaveValue('Nome preservado')
+  })
+
+  it('não oferece arquivamento de projeto para VIEWER', async () => {
+    vi.stubGlobal('fetch', fixture('VIEWER'))
+    window.history.pushState({}, '', '/portfolios/a')
+    render(<App />)
+    expect(await screen.findByRole('link', { name: /Projeto A/ })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Verificando permissão...')).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Editar Projeto A' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Arquivar projeto' })).not.toBeInTheDocument()
+  })
+
+  it('arquiva fluxo somente após confirmação, com CSRF e atualização da lista', async () => {
+    let archived = false
+    const fallback = fixture()
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/flows/f') && init.method === 'DELETE') {
+        archived = true
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (url.includes('/projects/p/flows?') && archived) return Promise.resolve(json(page([])))
+      return fallback(url, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
+    window.history.pushState({}, '', '/projects/p')
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Editar Fluxo A' }))
+    await user.click(screen.getByRole('button', { name: 'Arquivar fluxo' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Não é possível restaurá-lo')
+    expect(fetchMock.mock.calls.some(call => call[1].method === 'DELETE')).toBe(false)
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+    await user.click(screen.getByRole('button', { name: 'Arquivar fluxo' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByText('Nenhum fluxo neste projeto')).toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(item => item[1].method === 'DELETE')!
+    expect(call[0]).toBe('/api/v1/flows/f')
+    expect(new Headers(call[1].headers).get('X-CSRF-TOKEN')).toBe('fixture')
+  })
+
+  it('mantém a edição aberta e mostra falha ao arquivar', async () => {
+    const fallback = fixture()
+    vi.stubGlobal('fetch', vi.fn((url: string, init: RequestInit) => {
+      if (url.endsWith('/flows/f') && init.method === 'DELETE') return Promise.resolve(json({ code: 'ACCESS_DENIED' }, 403))
+      return fallback(url, init)
+    }))
+    const user = userEvent.setup()
+    window.history.pushState({}, '', '/projects/p')
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Editar Fluxo A' }))
+    await user.clear(screen.getByLabelText('Nome'))
+    await user.type(screen.getByLabelText('Nome'), 'Nome preservado')
+    await user.click(screen.getByRole('button', { name: 'Arquivar fluxo' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível arquivar o fluxo.')
     expect(screen.getByLabelText('Nome')).toHaveValue('Nome preservado')
   })
 })

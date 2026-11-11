@@ -8,6 +8,7 @@ import { errorMessage, request } from '../../shared/api/client'
 import type { Portfolio } from '../../shared/api/types'
 import { AppShell } from '../../shared/ui/AppShell'
 import { Button } from '../../shared/ui/button'
+import { EmptyIcon } from '../../shared/ui/EmptyIcon'
 import { usePortfolioPermissions } from '../portfolios/permissions'
 import { ProbePanel } from './ProbePanel'
 import type { Integration } from './types'
@@ -51,6 +52,6 @@ export function IntegrationPage() {
       <label>API key<input type="password" autoComplete="off" {...register('apiKey')} />{errors.apiKey && <span className="field-error">{errors.apiKey.message}</span>}</label>
       {error != null && <p className="error-box" role="alert">{errorMessage(error)} A chave foi limpa; informe-a novamente.</p>}
       <div><Button disabled={saving} type="submit">{saving ? 'Salvando...' : 'Vincular integração'}</Button></div>
-    </form></section> : <div className="panel">Nenhuma integração cadastrada. Somente OWNER ou administrador pode cadastrar.</div>}
+    </form></section> : <div className="panel empty"><EmptyIcon /><h2>Nenhuma integração cadastrada.</h2><p className="muted">Somente OWNER ou administrador pode cadastrar.</p></div>}
   </AppShell>
 }

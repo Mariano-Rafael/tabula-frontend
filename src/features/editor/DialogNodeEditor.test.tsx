@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearCsrf } from '../../shared/api/client'
+import { ConfirmProvider } from '../../shared/ui/ConfirmDialog'
 import { DialogNodeEditor } from './DialogNodeEditor'
 import type { DiagramNode } from './contracts'
 
@@ -23,7 +24,7 @@ describe('edição limitada Dialog (fixtures)', () => {
     vi.stubGlobal('fetch', fetchMock)
     const reload = vi.fn()
     const user = userEvent.setup()
-    render(<DialogNodeEditor flowId="flow" node={node} revision={7} disabled={false} onDirty={vi.fn()} onSaving={vi.fn()} onReload={reload} />)
+    render(<ConfirmProvider><DialogNodeEditor flowId="flow" node={node} revision={7} disabled={false} onDirty={vi.fn()} onSaving={vi.fn()} onReload={reload} /></ConfirmProvider>)
     expect(screen.queryByDisplayValue('Dinâmico')).not.toBeInTheDocument()
     expect(screen.queryByDisplayValue('Não editar')).not.toBeInTheDocument()
     await user.clear(screen.getByLabelText('Condição'))
@@ -41,7 +42,7 @@ describe('edição limitada Dialog (fixtures)', () => {
   it('retém alterações quando atualização após salvamento falha', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({ headerName: 'X-CSRF-TOKEN', token: 'fixture' })).mockResolvedValueOnce(response({}, 200, { ETag: '"8"' })))
     const user = userEvent.setup()
-    render(<DialogNodeEditor flowId="flow" node={node} revision={7} disabled={false} onDirty={vi.fn()} onSaving={vi.fn()} onReload={vi.fn().mockRejectedValue(new Error('offline'))} />)
+    render(<ConfirmProvider><DialogNodeEditor flowId="flow" node={node} revision={7} disabled={false} onDirty={vi.fn()} onSaving={vi.fn()} onReload={vi.fn().mockRejectedValue(new Error('offline'))} /></ConfirmProvider>)
     await user.clear(screen.getByLabelText('Título'))
     await user.type(screen.getByLabelText('Título'), 'Novo')
     await user.click(screen.getByRole('button', { name: 'Salvar alterações do nó' }))
